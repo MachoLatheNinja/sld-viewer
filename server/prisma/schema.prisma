@@ -1,0 +1,42 @@
+// Minimal schema for the rolled-back app (Road + Segment only)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Your DATABASE_URL should already target the "road_analyzer" schema
+  // e.g. ...?schema=road_analyzer
+  url      = env("DATABASE_URL")
+}
+
+model Road {
+  id        Int       @id @default(autoincrement())
+  name      String
+  lengthKm  Float
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  segments  Segment[]
+}
+
+model Segment {
+  id         Int     @id @default(autoincrement())
+  roadId     Int
+  startKm    Float
+  endKm      Float
+
+  // attributes used by the UI
+  lanesLeft  Int?
+  lanesRight Int?
+  surface    String?
+  status     String?
+  quality    String?
+  sidewalk   Boolean?
+  aadt       Int?
+
+  road Road  @relation(fields: [roadId], references: [id])
+
+  @@index([roadId, startKm, endKm])
+}

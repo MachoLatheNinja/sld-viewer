@@ -1,0 +1,15 @@
+# Node dependencies (anywhere)
+**/node_modules/
+npm-debug.log*
+
+# Environment files
+.env
+server/.env
+client/.env
+
+# Build artifacts (optional)
+**/dist/
+**/.vite/
+
+# Prisma (if you ever output generated client somewhere custom)
+prisma/generated/
