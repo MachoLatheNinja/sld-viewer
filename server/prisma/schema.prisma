@@ -1,4 +1,4 @@
-// Minimal schema for the rolled-back app (Road + Segment only)
+// Road Analyzer: each band in its own table + point events for KM posts.
 
 generator client {
   provider = "prisma-client-js"
@@ -6,8 +6,8 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  // Your DATABASE_URL should already target the "road_analyzer" schema
-  // e.g. ...?schema=road_analyzer
+  // Make sure your DATABASE_URL is set correctly. If you use a dedicated schema:
+  // postgresql://user:pass@host:5432/dbname?schema=road_analyzer
   url      = env("DATABASE_URL")
 }
 
@@ -19,15 +19,26 @@ model Road {
   updatedAt DateTime  @updatedAt
 
   segments  Segment[]
+
+  // per-band relations
+  surface   SurfaceBand[]
+  aadt      AadtBand[]
+  status    StatusBand[]
+  quality   QualityBand[]
+  lanes     LanesBand[]
+  rowWidth  RowWidthBand[]
+  muni      MunicipalityBand[]
+  bridge    BridgeBand[]
+  kmPosts   KmPost[]
 }
 
+// Legacy segment table (kept for compatibility / fallback)
 model Segment {
   id         Int     @id @default(autoincrement())
   roadId     Int
   startKm    Float
   endKm      Float
 
-  // attributes used by the UI
   lanesLeft  Int?
   lanesRight Int?
   surface    String?
@@ -39,4 +50,95 @@ model Segment {
   road Road  @relation(fields: [roadId], references: [id])
 
   @@index([roadId, startKm, endKm])
+}
+
+// -------- Range bands --------
+model SurfaceBand {
+  id       Int    @id @default(autoincrement())
+  roadId   Int
+  startKm  Float
+  endKm    Float
+  surface  String
+  road     Road   @relation(fields: [roadId], references: [id])
+  @@index([roadId, startKm, endKm])
+}
+
+model AadtBand {
+  id       Int   @id @default(autoincrement())
+  roadId   Int
+  startKm  Float
+  endKm    Float
+  aadt     Int
+  road     Road  @relation(fields: [roadId], references: [id])
+  @@index([roadId, startKm, endKm])
+}
+
+model StatusBand {
+  id       Int    @id @default(autoincrement())
+  roadId   Int
+  startKm  Float
+  endKm    Float
+  status   String
+  road     Road   @relation(fields: [roadId], references: [id])
+  @@index([roadId, startKm, endKm])
+}
+
+model QualityBand {
+  id       Int    @id @default(autoincrement())
+  roadId   Int
+  startKm  Float
+  endKm    Float
+  quality  String
+  road     Road   @relation(fields: [roadId], references: [id])
+  @@index([roadId, startKm, endKm])
+}
+
+model LanesBand {
+  id       Int   @id @default(autoincrement())
+  roadId   Int
+  startKm  Float
+  endKm    Float
+  lanes    Int
+  road     Road  @relation(fields: [roadId], references: [id])
+  @@index([roadId, startKm, endKm])
+}
+
+model RowWidthBand {
+  id        Int    @id @default(autoincrement())
+  roadId    Int
+  startKm   Float
+  endKm     Float
+  rowWidthM Float
+  road      Road   @relation(fields: [roadId], references: [id])
+  @@index([roadId, startKm, endKm])
+}
+
+model MunicipalityBand {
+  id       Int    @id @default(autoincrement())
+  roadId   Int
+  startKm  Float
+  endKm    Float
+  name     String
+  road     Road   @relation(fields: [roadId], references: [id])
+  @@index([roadId, startKm, endKm])
+}
+
+model BridgeBand {
+  id       Int    @id @default(autoincrement())
+  roadId   Int
+  startKm  Float
+  endKm    Float
+  name     String
+  road     Road   @relation(fields: [roadId], references: [id])
+  @@index([roadId, startKm, endKm])
+}
+
+// -------- Point events --------
+model KmPost {
+  id     Int    @id @default(autoincrement())
+  roadId Int
+  km     Float
+  label  String
+  road   Road   @relation(fields: [roadId], references: [id])
+  @@index([roadId, km])
 }

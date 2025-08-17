@@ -1,15 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 
-// Surface colors for both lane pavement and the "Surface" band
 const SURFACE_COLORS = { Asphalt:'#282828', Concrete:'#a1a1a1', Gravel:'#8d6e63' }
 const QUALITY_COLORS = { Poor:'#e53935', Fair:'#fb8c00', Good:'#43a047', Excellent:'#1e88e5' }
 const STATUS_COLORS  = { Open:'#9e9e9e', Closed:'#d32f2f' }
 
-// --- layout (tripled lane thickness) ---
-const LANE_ROW_H = 126      // each direction block height
-const LANE_UNIT  = 24       // each lane = 24px tall
-const SHOULDER_T = 3        // shoulder line thickness
-const MARK_THICK = 3        // dashed line thickness
+const LANE_ROW_H = 126
+const LANE_UNIT  = 24
+const MARK_THICK = 3
 
 const GAP = 8
 const TOP_PAD = 24
@@ -22,63 +19,41 @@ const MAX_BAND_H = 120
 const HANDLE_HIT = 6
 const EPS = 1e-6
 
-function deriveAADT(seg){
-  if (seg.aadt != null) return Number(seg.aadt)
-  if (seg.surface === 'Asphalt')  return 36000
-  if (seg.surface === 'Concrete') return 28000
-  return 12000
-}
-function formatAADT(n){ return (n==null)? '' : n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') }
-
-function bandValue(seg, key){
-  switch (key) {
-    case 'surface':  return seg.surface ?? ''
-    case 'status':   return seg.status ?? ''
-    case 'quality':  return seg.quality ?? ''
-    case 'sidewalk': return !!seg.sidewalk
-    case 'aadt':     return seg.aadt != null ? Number(seg.aadt) : deriveAADT(seg)
-    default:         return null
-  }
-}
-
-const BAND_RENDERERS = {
-  surface:  { color:(s)=>SURFACE_COLORS[s.surface]||'#bdbdbd',   label:(s)=>s.surface||'' },
-  aadt:     { color:()=> '#6a1b9a',                              label:(s)=>formatAADT(deriveAADT(s)) },
-  status:   { color:(s)=>STATUS_COLORS[s.status]||'#bdbdbd',      label:(s)=>s.status||'' },
-  quality:  { color:(s)=>QUALITY_COLORS[s.quality]||'#bdbdbd',    label:(s)=>s.quality||'' },
-  sidewalk: { color:(s)=> (s.sidewalk ? '#66bb6a' : '#212121'),   label:(s)=> s.sidewalk? 'Yes':'No' },
-}
+function formatAADT(n){ return (n==null)? '' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') }
 
 export default function SLDCanvasV2({
   road,
   segments = [],
+  layers,
   domain,
   onDomainChange,
   bands,
   onBandsChange,
-  // (segmentId, {newStartKm?|newEndKm?})
-  onResizeEdge,
+  onMoveSeam,        // (bandKey, leftId, rightId, km, extra={})
 }) {
   const canvasRef = useRef(null)
-  const [panX, setPanX] = useState(0)      // derived from domain
-  const [zoom, setZoom] = useState(80)     // derived from domain
+  const [panX, setPanX] = useState(0)
+  const [zoom, setZoom] = useState(80)
 
   const rafRef      = useRef(0)
-  const segsRef     = useRef(segments)
-  const dragRef     = useRef(null)
-  const lastArgsRef = useRef(null)
   const helpersRef  = useRef({ kmToX:(km)=>km, xToKm:(x)=>x })
-
-  useEffect(()=>{ segsRef.current = segments }, [segments])
+  const dragRef     = useRef(null)
 
   const lengthKm = Number(road?.lengthKm || 0)
   const fromKm = Math.max(0, domain?.fromKm ?? 0)
   const toKm   = Math.min(lengthKm, domain?.toKm ?? lengthKm)
 
+  useEffect(()=>{
+    const el = canvasRef.current; if(!el) return
+    const w = el.clientWidth || 1200
+    const desiredZoom = (w - LEFT_PAD - RIGHT_PAD) / Math.max(0.001, (toKm - fromKm))
+    setZoom(desiredZoom)
+    setPanX(LEFT_PAD - fromKm * desiredZoom)
+  }, [fromKm, toKm, lengthKm])
+
   const layout = useMemo(()=>{
     let y = TOP_PAD
-    const lanesTop = y; y += LANE_ROW_H
-    const lanesBot = y; y += LANE_ROW_H
+    const lanesY = y; y += LANE_ROW_H
     y += GAP
     const bandBoxes = bands.map((b) => {
       const h = Math.max(MIN_BAND_H, Math.min(MAX_BAND_H, Number(b.height)||28))
@@ -86,81 +61,47 @@ export default function SLDCanvasV2({
       y += h
       return box
     })
-    const axisY = y + 2
+    const kmPostY = y + 2
+    const axisY = kmPostY + 20
     const totalH = axisY + AXIS_H + 10
-    return { lanesTop, lanesBot, bandBoxes, axisY, totalH }
+    return { lanesY, bandBoxes, kmPostY, axisY, totalH }
   }, [bands])
 
-  // Keep zoom/pan in sync with the domain (single source of truth)
-  useEffect(()=>{
-    const el = canvasRef.current; if(!el) return
-    const w = el.clientWidth || 1200
-    const desiredZoom = (w - LEFT_PAD - RIGHT_PAD) / Math.max(0.001, (toKm - fromKm))
-    setZoom(desiredZoom)
-    setPanX(LEFT_PAD - fromKm * desiredZoom)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromKm, toKm, lengthKm])
-
-  // Merge same-value segments within the current window (used for bands)
-  function buildMergedRangesForBand(segs, key, fromKm, toKm) {
-    const S = segs
-      .filter(s => s.endKm > fromKm && s.startKm < toKm)
-      .slice()
-      .sort((a,b)=> a.startKm - b.startKm || a.id - b.id)
-
-    const merged = []
-    for (const s of S) {
-      const val = bandValue(s, key)
-      const start = Math.max(fromKm, s.startKm)
-      const end   = Math.min(toKm, s.endKm)
-      if (end - start <= 0) continue
-
-      if (merged.length === 0) {
-        merged.push({ startKm: start, endKm: end, value: val, sampleSeg: s, segId: s.id })
-      } else {
-        const last = merged[merged.length - 1]
-        const equalVal = (val === last.value) || (Number.isFinite(val) && Number.isFinite(last.value) && Math.abs(val - last.value) < EPS)
-        const contiguous = Math.abs(start - last.endKm) < EPS || start <= last.endKm + EPS
-        if (equalVal && contiguous) {
-          last.endKm = Math.max(last.endKm, end)
-        } else {
-          merged.push({ startKm: start, endKm: end, value: val, sampleSeg: s, segId: s.id })
-        }
-      }
-    }
-    return merged
-  }
-
-  // dashed line using filled rectangles (continuous/broken)
   function drawDashes(ctx, x1, x2, y, dashLen = 12, gapLen = 10, thickness = MARK_THICK) {
     const usableStart = x1 + 6
     const usableEnd   = x2 - 6
     if (usableEnd <= usableStart) return
-    const width = usableEnd - usableStart
     const period = dashLen + gapLen
-    const count = Math.ceil(width / period)
     let xi = usableStart
-    for (let i = 0; i < count; i++) {
+    while (xi < usableEnd) {
       const w = Math.min(dashLen, usableEnd - xi)
       if (w <= 0) break
-      ctx.fillRect(xi, Math.round(y - thickness/2) + 0.5, w, thickness)
+      ctx.fillRect(Math.round(xi)+0.5, Math.round(y - thickness/2)+0.5, w, thickness)
       xi += period
     }
   }
 
-  // --------- drawing ---------
-  const draw = (args) => {
-    const { segs, fromKm, toKm, panX, zoom, layout } = args
-    const prev = lastArgsRef.current
-    if (prev &&
-        prev.segs === segs &&
-        prev.fromKm === fromKm && prev.toKm === toKm &&
-        prev.panX === panX && prev.zoom === zoom &&
-        prev.layout === layout) {
-      return
+  const lanesAt = (km) => {
+    const arr = layers?.lanes || []
+    for (const r of arr) if (km >= r.startKm - EPS && km <= r.endKm + EPS) return Math.max(1, r.lanes)
+    let best = 2
+    for (const s of segments) {
+      if (km >= s.startKm - EPS && km <= s.endKm + EPS) {
+        const total = Math.max(1, (s.lanesLeft||0) + (s.lanesRight||0))
+        best = Math.max(best, total)
+      }
     }
-    lastArgsRef.current = args
+    return best
+  }
 
+  const surfaceAt = (km) => {
+    const arr = layers?.surface || []
+    for (const r of arr) if (km >= r.startKm - EPS && km <= r.endKm + EPS) return r.surface
+    for (const s of segments) if (km >= s.startKm - EPS && km <= s.endKm + EPS) return s.surface || 'Asphalt'
+    return 'Asphalt'
+  }
+
+  const draw = () => {
     const canvas = canvasRef.current; if (!canvas) return
     const ctx = canvas.getContext('2d')
     const w = canvas.clientWidth || 1200
@@ -178,104 +119,107 @@ export default function SLDCanvasV2({
     ctx.fillStyle = '#efe9d5'
     ctx.fillRect(0,0,w,h)
 
-    // -------- LANE ROWS (draw outward from centerline; colored by segment.surface) --------
-    const pxOverlap = 0.5
+    // ROAD strip (no seam lines)
+    const xStart = kmToX(fromKm), xEnd = kmToX(toKm)
+    const sampleCount = Math.max(1, Math.floor((toKm - fromKm) * 30))
+    let prevYTop=null, prevYBot=null, prevX=null
 
-    const drawLaneRow = (dir, yBase) => {
-      const rowH = LANE_ROW_H - 6
-      const innerY = (dir === 'L')
-        ? (yBase + rowH - SHOULDER_T) // inner edge near divider (bottom of top row)
-        : (yBase + SHOULDER_T)        // inner edge near divider (top of bottom row)
+    for (let i=0;i<=sampleCount;i++){
+      const t = i / sampleCount
+      const km = fromKm + t * (toKm - fromKm)
+      const x = kmToX(km)
+      const lanes = lanesAt(km)
+      const thickness = Math.max(18, lanes * (LANE_UNIT * 0.9))
+      const yCenter = layout.lanesY + LANE_ROW_H/2
+      const yTop = yCenter - thickness/2
+      const yBot = yCenter + thickness/2
+      const surf = surfaceAt(km)
+      const color = SURFACE_COLORS[surf] || '#707070'
 
-      for (const s of segs) {
-        if (s.endKm < fromKm || s.startKm > toKm) continue
-        const x1 = kmToX(Math.max(s.startKm, fromKm))
-        const x2 = kmToX(Math.min(s.endKm, toKm))
-        const ww = Math.max(1, x2 - x1)
-
-        const lanes = Math.max(1, dir==='L' ? (s.lanesLeft ?? 2) : (s.lanesRight ?? 2))
-        const paveH = Math.min(rowH - 2*SHOULDER_T, lanes * LANE_UNIT)
-        const baseY = (dir === 'L') ? (innerY - paveH) : innerY
-
-        const surfaceColor = SURFACE_COLORS[s.surface] || '#707070'
-        ctx.fillStyle = surfaceColor
-        ctx.fillRect(x1 - pxOverlap, baseY, ww + 2*pxOverlap, paveH)
-
-        // shoulders (horizontal only)
-        ctx.fillStyle = '#1b1b1b'
-        // inner fixed
-        ctx.fillRect(x1 - pxOverlap, innerY - (dir==='L'?1:0), ww + 2*pxOverlap, 1)
-        // outer depends on lanes
-        const outerY = (dir==='L') ? (baseY) : (baseY + paveH - 1)
-        ctx.fillRect(x1 - pxOverlap, outerY, ww + 2*pxOverlap, 1)
-
-        // dashed separators per lane
-        ctx.fillStyle = '#ffd54f'
-        for (let i = 1; i <= lanes - 1; i++) {
-          const y = (dir === 'L') ? (innerY - i * LANE_UNIT) : (innerY + i * LANE_UNIT)
-          drawDashes(ctx, x1, x2, y, 12, 10, MARK_THICK)
-        }
+      if (prevX != null) {
+        ctx.fillStyle = color
+        ctx.beginPath()
+        ctx.moveTo(prevX-0.5, Math.floor(prevYTop)+0.5)
+        ctx.lineTo(x+0.5,     Math.floor(yTop)+0.5)
+        ctx.lineTo(x+0.5,     Math.ceil(yBot)+0.5)
+        ctx.lineTo(prevX-0.5, Math.ceil(prevYBot)+0.5)
+        ctx.closePath()
+        ctx.fill()
       }
+      prevX=x; prevYTop=yTop; prevYBot=yBot
     }
 
-    drawLaneRow('L', layout.lanesTop)
-    drawLaneRow('R', layout.lanesBot)
+    // dashed center line
+    ctx.fillStyle = '#ffd54f'
+    const yCenter = layout.lanesY + LANE_ROW_H/2
+    drawDashes(ctx, xStart, xEnd, yCenter, 12, 10, MARK_THICK)
 
-    // subtle divider between directions (horizontal only)
-    ctx.strokeStyle = '#b0bec5'
-    ctx.setLineDash([6,4])
-    ctx.beginPath()
-    ctx.moveTo(LEFT_PAD, layout.lanesBot-3)
-    ctx.lineTo(w-RIGHT_PAD, layout.lanesBot-3)
-    ctx.stroke()
-    ctx.setLineDash([])
+    // ----- BANDS -----
+    const drawRanges = (box, ranges, colorFn, labelFn) => {
+      if (!ranges) return
+      const titleY = box.y + Math.min(16, box.h-6)
+      const trackH = box.h - 6
+      const trackW = w - LEFT_PAD - RIGHT_PAD
+      const trackY = box.y
 
-    // -------- BANDS (merged segments with same value) --------
-    for (const box of layout.bandBoxes) {
-      const renderer = BAND_RENDERERS[box.key] || { color:()=> '#bdbdbd', label:()=> '' }
-
-      // title
-      ctx.fillStyle = '#424242'
-      ctx.font = '12px system-ui'
-      ctx.fillText(box.title, 4, box.y + Math.min(16, box.h-6))
-
-      // track background
       ctx.fillStyle = '#f5f5f5'
-      ctx.fillRect(LEFT_PAD, box.y, w - LEFT_PAD - RIGHT_PAD, box.h - 6)
+      ctx.fillRect(LEFT_PAD, trackY, trackW, trackH)
 
-      // merged bands
-      const merged = buildMergedRangesForBand(segs, box.key, fromKm, toKm)
-      for (const mr of merged) {
-        const x1 = kmToX(mr.startKm)
-        const x2 = kmToX(mr.endKm)
-        const ww = Math.max(1, x2 - x1)
-        const sample = mr.sampleSeg
-        ctx.fillStyle = renderer.color(sample)
-        ctx.fillRect(x1, box.y, ww, box.h - 6)
+      for (const r of ranges) {
+        if (r.endKm < fromKm || r.startKm > toKm) continue
+        const x1 = kmToX(Math.max(r.startKm, fromKm))
+        const x2 = kmToX(Math.min(r.endKm, toKm))
+        const ww = Math.max(1, x2 - x1) + 1 // overlap to hide hairlines
+        ctx.fillStyle = colorFn(r)
+        ctx.fillRect(Math.floor(x1)-0.5, trackY, ww, trackH)
 
-        const label = renderer.label ? renderer.label(sample) : ''
-        if (label) {
+        const lbl = labelFn ? labelFn(r) : ''
+        if (lbl) {
           ctx.fillStyle = '#fff'
           ctx.font = '11px system-ui'
           ctx.textAlign = 'center'
-          ctx.fillText(label, x1 + ww/2, box.y + (box.h/2) + 3)
+          ctx.fillText(lbl, x1 + ww/2 - 0.5, trackY + (trackH/2) + 3)
           ctx.textAlign = 'left'
         }
       }
 
-      // simple visual seam lines to hint at editable edges (between merged ranges)
-      ctx.fillStyle = '#00000044'
-      for (const mr of merged) {
-        const xx = kmToX(mr.endKm)
-        if (mr.endKm < toKm - EPS) ctx.fillRect(xx - 1, box.y, 2, box.h - 6)
-      }
-
-      // bottom guide
-      ctx.fillStyle = '#9e9e9e88'
-      ctx.fillRect(LEFT_PAD, box.y + box.h - 2, w - LEFT_PAD - RIGHT_PAD, 2)
+      ctx.fillStyle = '#424242'
+      ctx.font = '12px system-ui'
+      ctx.fillText(box.title, 4, titleY)
     }
 
-    // -------- Axis --------
+    for (const box of layout.bandBoxes) {
+      switch (box.key) {
+        case 'surface':
+          drawRanges(box, layers?.surface, r => SURFACE_COLORS[r.surface]||'#bdbdbd', r => r.surface)
+          break
+        case 'aadt':
+          drawRanges(box, layers?.aadt, _ => '#6a1b9a', r => formatAADT(r.aadt))
+          break
+        case 'status':
+          drawRanges(box, layers?.status, r => STATUS_COLORS[r.status]||'#bdbdbd', r => r.status)
+          break
+        case 'quality':
+          drawRanges(box, layers?.quality, r => QUALITY_COLORS[r.quality]||'#bdbdbd', r => r.quality)
+          break
+        case 'rowWidth':
+          drawRanges(box, layers?.rowWidth, _ => '#1565c0', r => `${r.rowWidthM} m`)
+          break
+        case 'lanes':
+          drawRanges(box, layers?.lanes, _ => '#4e342e', r => `${r.lanes} lanes`)
+          break
+        case 'municipality':
+          drawRanges(box, layers?.municipality, _ => '#00796b', r => r.name)
+          break
+        case 'bridges':
+          drawRanges(box, layers?.bridges, _ => '#5d4037', r => r.name)
+          break
+        default:
+          break
+      }
+    }
+
+    // KM labels / axis
     ctx.strokeStyle = '#9e9e9e'
     ctx.fillStyle = '#616161'
     ctx.lineWidth = 1
@@ -295,62 +239,83 @@ export default function SLDCanvasV2({
 
   const scheduleDraw = () => {
     cancelAnimationFrame(rafRef.current)
-    rafRef.current = requestAnimationFrame(() => {
-      draw({ segs: segsRef.current, fromKm, toKm, panX, zoom, layout })
-    })
+    rafRef.current = requestAnimationFrame(() => draw())
   }
 
-  useEffect(() => { scheduleDraw() }, [fromKm, toKm, panX, zoom, layout])
-  useEffect(() => { scheduleDraw() }, [segments])
+  useEffect(() => { scheduleDraw() }, [fromKm, toKm, panX, zoom, layout, layers, segments])
 
-  // ----- hit test for resize handles (between merged ranges) -----
-  const hitEdgeAt = (x, y) => {
-    const { kmToX } = helpersRef.current
-    let bandKey = null
-    for (const box of layout.bandBoxes) {
-      if (y >= box.y && y <= box.y + box.h) { bandKey = box.key; break }
+  // ---------- interactions ----------
+  const bandArrayByKey = (key) => {
+    if (!layers) return []
+    switch (key) {
+      case 'surface': return layers.surface || []
+      case 'aadt': return layers.aadt || []
+      case 'status': return layers.status || []
+      case 'quality': return layers.quality || []
+      case 'lanes': return layers.lanes || []
+      case 'rowWidth': return layers.rowWidth || []
+      case 'municipality': return layers.municipality || []
+      case 'bridges': return layers.bridges || []
+      default: return []
     }
-    if (!bandKey) return null
+  }
 
-    // Find a segment boundary near X by comparing adjacent original segments
-    // and return the segment id of the right segment (to adjust its start) or
-    // left segment (to adjust its end). This is a simplified handler.
-    const km = helpersRef.current.xToKm(x)
-    // pick closest seam (endKm) in view
-    let best = null
-    for (const s of segsRef.current) {
-      if (s.endKm <= km + 0.02 && s.endKm >= km - 0.02 && s.endKm > domain.fromKm + EPS && s.endKm < domain.toKm - EPS) {
-        const px = kmToX(s.endKm)
-        if (Math.abs(px - x) <= HANDLE_HIT) {
-          best = { segmentId: s.id, km: s.endKm }
-          break
+  // hit seam/edge: for bridges, allow start & end edge handles; for others, only adjacent seams
+  const hitSeamAt = (x, y) => {
+    const { kmToX } = helpersRef.current
+    let box = null
+    for (const b of layout.bandBoxes) {
+      if (y >= b.y && y <= b.y + b.h) { box = b; break }
+    }
+    if (!box) return null
+    const arr = bandArrayByKey(box.key)
+
+    if (box.key === 'bridges') {
+      for (let i=0; i<arr.length; i++){
+        const r = arr[i]
+        const sx = kmToX(r.startKm)
+        const ex = kmToX(r.endKm)
+        if (Math.abs(ex - x) <= HANDLE_HIT) {
+          // end edge handle
+          const right = arr[i+1] || null
+          return { bandKey: box.key, left: r, right, edge:'end' }
+        }
+        if (Math.abs(sx - x) <= HANDLE_HIT) {
+          // start edge handle
+          const left = arr[i-1] || null
+          return { bandKey: box.key, left, right: r, edge:'start' }
         }
       }
+      return null
     }
-    return best
+
+    // default bands: adjacent seam between i and i+1
+    for (let i=0;i<arr.length-1;i++){
+      const seamKm = arr[i].endKm
+      if (seamKm <= fromKm || seamKm >= toKm) continue
+      const px = kmToX(seamKm)
+      if (Math.abs(px - x) <= HANDLE_HIT) {
+        return { bandKey: box.key, left: arr[i], right: arr[i+1] }
+      }
+    }
+    return null
   }
 
-  // ----- interactions -----
   const onWheel = (e) => {
     e.preventDefault()
     const { xToKm } = helpersRef.current
     const { offsetX } = e.nativeEvent
     const mouseKm = xToKm(offsetX)
-
     const zoomIn = e.deltaY < 0
     const factor = zoomIn ? 0.9 : 1.1
-
     const currSpan = Math.max(0.001, toKm - fromKm)
     let newSpan = Math.min(lengthKm, Math.max(0.05, currSpan * factor))
-
     const leftFrac = (mouseKm - fromKm) / currSpan
     let newFrom = mouseKm - leftFrac * newSpan
     let newTo = newFrom + newSpan
-
     if (newFrom < 0) { newTo -= newFrom; newFrom = 0 }
     if (newTo > lengthKm) { newFrom -= (newTo - lengthKm); newTo = lengthKm }
     if (newTo <= newFrom) return
-
     onDomainChange(newFrom, newTo)
   }
 
@@ -358,8 +323,8 @@ export default function SLDCanvasV2({
     const rect = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
-    const edge = hitEdgeAt(x, y)
-    if (edge) { dragRef.current = { type:'edge', ...edge }; return }
+    const seam = hitSeamAt(x, y)
+    if (seam) { dragRef.current = { type:'seam', ...seam }; return }
     dragRef.current = { type:'pan', startX:x, startFrom: fromKm, startTo: toKm }
   }
 
@@ -367,13 +332,11 @@ export default function SLDCanvasV2({
     const rect = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
-
-    const overEdge = hitEdgeAt(x, y)
-    e.currentTarget.style.cursor = overEdge ? 'ew-resize' : (dragRef.current?.type==='pan' ? 'grabbing' : 'grab')
+    const seam = hitSeamAt(x, y)
+    e.currentTarget.style.cursor = seam ? 'ew-resize' : (dragRef.current?.type==='pan' ? 'grabbing' : 'grab')
 
     const drag = dragRef.current
     if (!drag) return
-
     if (drag.type === 'pan') {
       const deltaPx = x - drag.startX
       const deltaKm = deltaPx / Math.max(1e-6, zoom)
@@ -383,37 +346,39 @@ export default function SLDCanvasV2({
       if (nt > lengthKm) { nf -= (nt - lengthKm); nt = lengthKm }
       if (nt <= nf) return
       onDomainChange(nf, nt)
-      return
-    }
-
-    if (drag.type === 'edge') {
-      // just show cursor; we don't do live preview of the band yet
     }
   }
 
   const onMouseUp = async (e) => {
     const drag = dragRef.current
     dragRef.current = null
-    if (!drag) return
+    if (!drag || drag.type !== 'seam') return
 
-    if (drag.type === 'edge') {
-      const rect = e.currentTarget.getBoundingClientRect()
-      const x = e.clientX - rect.left
-      const { xToKm } = helpersRef.current
-      const dropKm = Math.min(Math.max(0, xToKm(x)), lengthKm)
-      const changed = Math.abs(dropKm - drag.km) >= 1e-6
-      if (changed) {
-        // Persist by telling server to move the boundary near original s.endKm to dropKm
-        const payload = (dropKm > drag.km) ? { newEndKm: dropKm } : { newEndKm: dropKm }
-        await onResizeEdge?.(drag.segmentId, payload)
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const { xToKm } = helpersRef.current
+    const dropKm = xToKm(x)
+
+    if (drag.bandKey === 'bridges') {
+      if (drag.edge === 'end') {
+        const next = drag.right || null
+        // clamp will be done server-side; we just send what we dropped
+        await onMoveSeam?.('bridges', drag.left.id, next?.id ?? null, dropKm, { edge:'end' })
+      } else if (drag.edge === 'start') {
+        const prev = drag.left || null
+        await onMoveSeam?.('bridges', prev?.id ?? null, drag.right.id, dropKm, { edge:'start' })
       }
+      return
     }
+
+    // default bands (gap-free), seam is between left & right
+    await onMoveSeam?.(drag.bandKey, drag.left.id, drag.right.id, dropKm)
   }
 
   return (
     <div style={{ border:'1px solid #e0e0e0', borderRadius:8, background:'#fff', padding:8 }}>
       <div style={{ fontWeight:700, marginBottom:6 }}>
-        {road?.name ?? 'Road'} — Lane Diagram & Attribute Bands
+        {road?.name ?? 'Road'} — Editable Independent Bands
       </div>
       <canvas
         ref={canvasRef}
@@ -426,7 +391,7 @@ export default function SLDCanvasV2({
         onMouseUp={onMouseUp}
       />
       <div style={{ fontSize:12, color:'#616161', marginTop:6 }}>
-        Lanes are prominent (each lane is {LANE_UNIT}px). Pavement color shows the current segment surface.
+        Drag seams to edit. Bridges allow gaps and support dragging either edge. Pan by dragging; scroll to zoom.
       </div>
     </div>
   )

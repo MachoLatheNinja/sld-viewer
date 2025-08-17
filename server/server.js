@@ -14,38 +14,28 @@ const PORT = process.env.PORT || 4000
 const EPS = 1e-6
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
 
-// ----- demo helpers -----
-async function createDemoSegments(roadId) {
-  const demo = [
-    { startKm: 0.0,  endKm: 4.0,  lanesLeft: 2, lanesRight: 2, surface: 'Asphalt',  status:'Open',   quality:'Good',      sidewalk:true,  aadt: 18000 },
-    { startKm: 4.0,  endKm: 8.0,  lanesLeft: 2, lanesRight: 2, surface: 'Concrete', status:'Open',   quality:'Fair',      sidewalk:false, aadt: 26500 },
-    { startKm: 8.0,  endKm:12.5,  lanesLeft: 3, lanesRight: 3, surface: 'Concrete', status:'Open',   quality:'Fair',      sidewalk:false, aadt: 28000 },
-    { startKm:12.5,  endKm:20.0, lanesLeft: 3, lanesRight: 3, surface: 'Asphalt',  status:'Closed', quality:'Excellent', sidewalk:true,  aadt: 31000 },
-  ]
-  for (const s of demo) await prisma.segment.create({ data: { roadId, ...s } })
+// ---------- helpers ----------
+const BAND_META = {
+  surface:      { client: (tx)=>tx.surfaceBand,      valueField: 'surface'    },
+  aadt:         { client: (tx)=>tx.aadtBand,         valueField: 'aadt'       },
+  status:       { client: (tx)=>tx.statusBand,       valueField: 'status'     },
+  quality:      { client: (tx)=>tx.qualityBand,      valueField: 'quality'    },
+  lanes:        { client: (tx)=>tx.lanesBand,        valueField: 'lanes'      },
+  rowWidth:     { client: (tx)=>tx.rowWidthBand,     valueField: 'rowWidthM'  },
+  municipality: { client: (tx)=>tx.municipalityBand, valueField: 'name'       },
+  bridges:      { client: (tx)=>tx.bridgeBand,       valueField: 'name'       },
 }
 
-async function ensureRoadAndSegments() {
-  // if no road exists, create one with demo segments
-  const roads = await prisma.road.findMany({ orderBy: { id: 'asc' } })
-  if (roads.length === 0) {
-    const road = await prisma.road.create({ data: { name: 'NH-12 Demo Corridor', lengthKm: 20 } })
-    await createDemoSegments(road.id)
-    return
-  }
-  // if a road exists but has no segments, seed segments for it
-  for (const r of roads) {
-    const count = await prisma.segment.count({ where: { roadId: r.id } })
-    if (count === 0) await createDemoSegments(r.id)
-  }
+function eqVal(a,b){
+  if (typeof a === 'number' && typeof b === 'number') return Math.abs(a-b) < EPS
+  return a === b
 }
 
-// health check
-app.get('/health', (req, res) => res.json({ ok: true }))
+// ---------- health ----------
+app.get('/health', (_req, res) => res.json({ ok: true }))
 
-// ----- roads -----
+// ---------- roads ----------
 app.get('/api/roads', async (req, res) => {
-  await ensureRoadAndSegments()
   const q = (req.query.q ?? '').toString().trim()
   const roads = await prisma.road.findMany({
     where: q ? { name: { contains: q, mode: 'insensitive' } } : {},
@@ -54,87 +44,190 @@ app.get('/api/roads', async (req, res) => {
   res.json(roads)
 })
 
-// ----- segments for a road -----
+// legacy segments (optional)
 app.get('/api/roads/:id/segments', async (req, res) => {
   const roadId = Number(req.params.id)
   const road = await prisma.road.findUnique({ where: { id: roadId } })
   if (!road) return res.status(404).json({ error: 'Road not found' })
-
-  // self-heal if no segments
-  const segCount = await prisma.segment.count({ where: { roadId } })
-  if (segCount === 0) await createDemoSegments(roadId)
-
   const segments = await prisma.segment.findMany({
     where: { roadId },
-    orderBy: [{ startKm: 'asc' }, { id: 'asc' }],
+    orderBy: [{ startKm:'asc' }, { id:'asc' }],
   })
   res.json({ road, segments })
 })
 
-/**
- * Resize a segment boundary (keeps neighbors continuous where possible)
- * POST /api/segments/:id/resize
- * body: { newStartKm?: number, newEndKm?: number }
- */
-app.post('/api/segments/:id/resize', async (req, res) => {
-  const id = Number(req.params.id)
-  const seg = await prisma.segment.findUnique({ where: { id } })
-  if (!seg) return res.status(404).json({ error: 'Segment not found' })
-
-  const road = await prisma.road.findUnique({ where: { id: seg.roadId } })
+// all layers (per-band tables)
+app.get('/api/roads/:id/layers', async (req, res) => {
+  const roadId = Number(req.params.id)
+  const road = await prisma.road.findUnique({ where: { id: roadId } })
   if (!road) return res.status(404).json({ error: 'Road not found' })
 
-  let { newStartKm, newEndKm } = req.body || {}
-  const hasStart = Number.isFinite(newStartKm)
-  const hasEnd   = Number.isFinite(newEndKm)
-  if (!hasStart && !hasEnd) return res.status(400).json({ error: 'Provide newStartKm or newEndKm' })
+  const [
+    surface, aadt, status, quality, lanes, rowWidth, municipality, bridges, kmPosts
+  ] = await Promise.all([
+    prisma.surfaceBand.findMany({ where: { roadId }, orderBy: [{ startKm:'asc' }, { id:'asc' }] }),
+    prisma.aadtBand.findMany({ where: { roadId }, orderBy: [{ startKm:'asc' }, { id:'asc' }] }),
+    prisma.statusBand.findMany({ where: { roadId }, orderBy: [{ startKm:'asc' }, { id:'asc' }] }),
+    prisma.qualityBand.findMany({ where: { roadId }, orderBy: [{ startKm:'asc' }, { id:'asc' }] }),
+    prisma.lanesBand.findMany({ where: { roadId }, orderBy: [{ startKm:'asc' }, { id:'asc' }] }),
+    prisma.rowWidthBand.findMany({ where: { roadId }, orderBy: [{ startKm:'asc' }, { id:'asc' }] }),
+    prisma.municipalityBand.findMany({ where: { roadId }, orderBy: [{ startKm:'asc' }, { id:'asc' }] }),
+    prisma.bridgeBand.findMany({ where: { roadId }, orderBy: [{ startKm:'asc' }, { id:'asc' }] }),
+    prisma.kmPost.findMany({ where: { roadId }, orderBy: [{ km:'asc' }, { id:'asc' }] }),
+  ])
 
-  const siblings = await prisma.segment.findMany({
-    where: { roadId: seg.roadId },
-    orderBy: [{ startKm: 'asc' }, { id: 'asc' }],
-  })
-  const idx = siblings.findIndex(s => s.id === seg.id)
-  const prev = idx > 0 ? siblings[idx - 1] : null
-  const next = idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1] : null
-
-  let startKm = seg.startKm
-  let endKm   = seg.endKm
-
-  if (hasStart) {
-    newStartKm = clamp(Number(newStartKm), 0, road.lengthKm)
-    startKm = Math.min(newStartKm, endKm - 0.0005)
-  }
-  if (hasEnd) {
-    newEndKm = clamp(Number(newEndKm), 0, road.lengthKm)
-    endKm = Math.max(newEndKm, startKm + 0.0005)
-  }
-
-  if (prev) startKm = Math.max(startKm, prev.startKm + 0.0005)
-  if (next) endKm   = Math.min(endKm,   next.endKm   - 0.0005)
-  if (endKm <= startKm) return res.status(400).json({ error: 'Resize would invert or eliminate segment' })
-
-  await prisma.$transaction(async (tx) => {
-    await tx.segment.update({ where: { id: seg.id }, data: { startKm, endKm } })
-    if (hasEnd && next && Math.abs(next.startKm - seg.endKm) < 0.01) {
-      await tx.segment.update({ where: { id: next.id }, data: { startKm: endKm } })
-    }
-    if (hasStart && prev && Math.abs(prev.endKm - seg.startKm) < 0.01) {
-      await tx.segment.update({ where: { id: prev.id }, data: { endKm: startKm } })
-    }
-  })
-
-  const fresh = await prisma.segment.findMany({
-    where: { roadId: seg.roadId },
-    orderBy: [{ startKm: 'asc' }, { id: 'asc' }],
-  })
-  res.json({ road, segments: fresh })
+  res.json({ road, surface, aadt, status, quality, lanes, rowWidth, municipality, bridges, kmPosts })
 })
 
-app.listen(PORT, async () => {
-  console.log(`API http://localhost:${PORT}`)
+/**
+ * Generic seam move:
+ * - Default bands (non-bridges): keep gap-free by tying both sides to the same seam.
+ * - Bridges: allow gaps. You can move either edge:
+ *     body: { edge: 'start' | 'end' }
+ *   For 'end': update only left.endKm, no overlap with next.startKm (if exists).
+ *   For 'start': update only right.startKm, no overlap with prev.endKm (if exists).
+ *
+ * POST /api/roads/:id/bands/:band/move-seam
+ * body:
+ *   non-bridges: { leftId:number, rightId:number, km:number }
+ *   bridges:     { leftId?:number, rightId?:number, km:number, edge:'start'|'end' }
+ */
+app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
+  const roadId = Number(req.params.id)
+  const band = String(req.params.band)
+  const meta = BAND_META[band]
+  if (!meta) return res.status(400).json({ error: 'Unknown band' })
+
+  const road = await prisma.road.findUnique({ where: { id: roadId } })
+  if (!road) return res.status(404).json({ error: 'Road not found' })
+
+  const { leftId, rightId, km, edge } = req.body || {}
+  if (!Number.isFinite(km)) return res.status(400).json({ error: 'km is required' })
+
   try {
-    await ensureRoadAndSegments()
+    const rows = await prisma.$transaction(async (tx) => {
+      const T = meta.client(tx)
+
+      if (band === 'bridges') {
+        // allow gaps, allow moving either edge; rightId/leftId may be missing
+        if (edge === 'end') {
+          if (!Number.isFinite(leftId)) throw new Error('leftId required for edge=end')
+          const left = await T.findUnique({ where: { id: leftId } })
+          if (!left || left.roadId !== roadId) throw new Error('left row missing/mismatch')
+
+          // find the first row that starts after this left row (if any)
+          const next = await T.findFirst({
+            where: { roadId, startKm: { gt: left.startKm + EPS } },
+            orderBy: { startKm: 'asc' }
+          })
+
+          const minKm = left.startKm + 0.0001
+          const maxKm = next ? next.startKm - 0.0001 : (road.lengthKm - 0.0001)
+          const newKm = clamp(km, minKm, maxKm)
+          await T.update({ where: { id: left.id }, data: { endKm: newKm } })
+
+          // optional merge with left neighbor if same value
+          const leftNeighbor = await T.findFirst({
+            where: { roadId, endKm: { gte: left.startKm - EPS, lte: left.startKm + EPS } },
+            orderBy: { endKm: 'desc' }
+          })
+          const leftAfter = await T.findUnique({ where: { id: left.id } })
+          if (leftNeighbor && Math.abs(leftNeighbor.endKm - leftAfter.startKm) < EPS &&
+              eqVal(leftNeighbor[meta.valueField], leftAfter[meta.valueField])) {
+            await T.delete({ where: { id: leftNeighbor.id } })
+            await T.update({ where: { id: leftAfter.id }, data: { startKm: leftNeighbor.startKm } })
+          }
+
+        } else if (edge === 'start') {
+          if (!Number.isFinite(rightId)) throw new Error('rightId required for edge=start')
+          const right = await T.findUnique({ where: { id: rightId } })
+          if (!right || right.roadId !== roadId) throw new Error('right row missing/mismatch')
+
+          // find the last row that ends before this right row (if any)
+          const prev = await T.findFirst({
+            where: { roadId, endKm: { lt: right.endKm + EPS } },
+            orderBy: { endKm: 'desc' }
+          })
+
+          const minKm = prev ? prev.endKm + 0.0001 : 0.0001
+          const maxKm = right.endKm - 0.0001
+          const newKm = clamp(km, minKm, maxKm)
+          await T.update({ where: { id: right.id }, data: { startKm: newKm } })
+
+          // optional merge with right neighbor if same value
+          const rightNeighbor = await T.findFirst({
+            where: { roadId, startKm: { gte: right.endKm - EPS, lte: right.endKm + EPS } },
+            orderBy: { startKm: 'asc' }
+          })
+          const rightAfter = await T.findUnique({ where: { id: right.id } })
+          if (rightNeighbor && Math.abs(rightNeighbor.startKm - rightAfter.endKm) < EPS &&
+              eqVal(rightNeighbor[meta.valueField], rightAfter[meta.valueField])) {
+            await T.delete({ where: { id: rightNeighbor.id } })
+            await T.update({ where: { id: rightAfter.id }, data: { endKm: rightNeighbor.endKm } })
+          }
+        } else {
+          throw new Error("edge must be 'start' or 'end' for bridges")
+        }
+
+      } else {
+        // default bands: keep gap-free by tying both sides to same seam
+        if (!Number.isFinite(leftId) || !Number.isFinite(rightId)) {
+          throw new Error('leftId and rightId are required for this band')
+        }
+        let left = await T.findUnique({ where: { id: leftId } })
+        let right = await T.findUnique({ where: { id: rightId } })
+        if (!left || !right) throw new Error('Seam rows not found')
+        if (left.roadId !== roadId || right.roadId !== roadId) throw new Error('Road mismatch')
+
+        // enforce ordering
+        if (left.startKm > right.startKm) { const tmp = left; left = right; right = tmp }
+
+        const minKm = left.startKm + 0.0001
+        const maxKm = right.endKm - 0.0001
+        const newKm = clamp(km, minKm, maxKm)
+
+        await T.update({ where: { id: left.id },  data: { endKm:   newKm } })
+        await T.update({ where: { id: right.id }, data: { startKm: newKm } })
+
+        // merge neighbors if equal
+        const leftNeighbor = await T.findFirst({
+          where: { roadId, endKm: { gte: left.startKm - EPS, lte: left.startKm + EPS } },
+          orderBy: { endKm: 'desc' }
+        })
+        const leftAfter = await T.findUnique({ where: { id: left.id } })
+        if (leftNeighbor && Math.abs(leftNeighbor.endKm - leftAfter.startKm) < EPS &&
+            eqVal(leftNeighbor[meta.valueField], leftAfter[meta.valueField])) {
+          await T.delete({ where: { id: leftNeighbor.id } })
+          await T.update({ where: { id: leftAfter.id }, data: { startKm: leftNeighbor.startKm } })
+        }
+
+        const rightNeighbor = await T.findFirst({
+          where: { roadId, startKm: { gte: right.endKm - EPS, lte: right.endKm + EPS } },
+          orderBy: { startKm: 'asc' }
+        })
+        const rightAfter = await T.findUnique({ where: { id: right.id } })
+        if (rightNeighbor && Math.abs(rightNeighbor.startKm - rightAfter.endKm) < EPS &&
+            eqVal(rightNeighbor[meta.valueField], rightAfter[meta.valueField])) {
+          await T.delete({ where: { id: rightNeighbor.id } })
+          await T.update({ where: { id: rightAfter.id }, data: { endKm: rightNeighbor.endKm } })
+        }
+      }
+
+      // return fresh rows for this band
+      const fresh = await T.findMany({
+        where: { roadId },
+        orderBy: [{ startKm:'asc' }, { id:'asc' }]
+      })
+      return fresh
+    })
+
+    res.json({ band, rows })
   } catch (e) {
-    console.error('⚠️ ensureRoadAndSegments failed:', e?.message || e)
+    console.error('move-seam error:', e)
+    res.status(400).json({ error: String(e.message || e) })
   }
+})
+
+app.listen(PORT, () => {
+  console.log(`API http://localhost:${PORT}`)
 })
