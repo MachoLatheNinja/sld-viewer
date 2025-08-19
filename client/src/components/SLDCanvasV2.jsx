@@ -187,29 +187,29 @@ export default function SLDCanvasV2({
 
     // ----- BANDS -----
     const drawRanges = (box, ranges, colorFn, labelFn) => {
-      if (!ranges) return
-      const titleY = box.y + Math.min(16, box.h-6)
+      const titleY = box.y + Math.min(16, box.h - 6)
       const trackH = box.h - 6
       const trackW = w - LEFT_PAD - RIGHT_PAD
       const trackY = box.y
 
+      // draw the track even if there is no data so the band is still visible
       ctx.fillStyle = '#f5f5f5'
       ctx.fillRect(LEFT_PAD, trackY, trackW, trackH)
 
-      for (const r of ranges) {
+      for (const r of ranges || []) {
         if (r.endKm < fromKm || r.startKm > toKm) continue
         const x1 = kmToX(Math.max(r.startKm, fromKm))
         const x2 = kmToX(Math.min(r.endKm, toKm))
         const ww = Math.max(1, x2 - x1) + 1 // overlap to hide hairlines
         ctx.fillStyle = colorFn(r)
-        ctx.fillRect(Math.floor(x1)-0.5, trackY, ww, trackH)
+        ctx.fillRect(Math.floor(x1) - 0.5, trackY, ww, trackH)
 
         const lbl = labelFn ? labelFn(r) : ''
         if (lbl) {
           ctx.fillStyle = '#fff'
           ctx.font = '11px system-ui'
           ctx.textAlign = 'center'
-          ctx.fillText(lbl, x1 + ww/2 - 0.5, trackY + (trackH/2) + 3)
+          ctx.fillText(lbl, x1 + ww / 2 - 0.5, trackY + trackH / 2 + 3)
           ctx.textAlign = 'left'
         }
       }
