@@ -21,36 +21,6 @@ const EPS = 1e-6
 
 function formatAADT(n){ return (n==null)? '' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') }
 
-function mergeRanges(ranges, key, labelKey){
-  if (!ranges || ranges.length===0) return []
-  const out = []
-  let cur = { ...ranges[0] }
-  for (let i=1;i<ranges.length;i++){
-    const r = ranges[i]
-    const same = r[key] === cur[key] && (!labelKey || r[labelKey] === cur[labelKey])
-    if (same && Math.abs(cur.endKm - r.startKm) < 1e-6){
-      cur.endKm = r.endKm
-    } else {
-      out.push(cur)
-      cur = { ...r }
-    }
-  }
-  out.push(cur)
-  return out
-}
-
-function deriveLanesFromSegments(segments) {
-  if (!segments || segments.length===0) return []
-  const sorted = [...segments].sort((a,b)=> a.startKm - b.startKm || a.id - b.id)
-  const raw = sorted.map(s => ({
-    startKm: s.startKm,
-    endKm: s.endKm,
-    lanes: Math.max(0, (s.lanesLeft||0) + (s.lanesRight||0))
-  }))
-  const merged = mergeRanges(raw, 'lanes')
-  return merged
-}
-
 export default function SLDCanvasV2({
   road,
   segments = [],
@@ -58,6 +28,7 @@ export default function SLDCanvasV2({
   domain,
   onDomainChange,
   bands,
+  onBandsChange,
   onMoveSeam,        // (bandKey, leftId, rightId, km, extra={})
 }) {
   const canvasRef = useRef(null)
@@ -95,8 +66,6 @@ export default function SLDCanvasV2({
     const totalH = axisY + AXIS_H + 10
     return { lanesY, bandBoxes, kmPostY, axisY, totalH }
   }, [bands])
-
-  const lanesBandEffective = useMemoLanesBand(layers?.lanes, segments, fromKm, toKm)
 
   function drawDashes(ctx, x1, x2, y, dashLen = 12, gapLen = 10, thickness = MARK_THICK) {
     const usableStart = x1 + 6
@@ -187,29 +156,29 @@ export default function SLDCanvasV2({
 
     // ----- BANDS -----
     const drawRanges = (box, ranges, colorFn, labelFn) => {
-      const titleY = box.y + Math.min(16, box.h - 6)
+      if (!ranges) return
+      const titleY = box.y + Math.min(16, box.h-6)
       const trackH = box.h - 6
       const trackW = w - LEFT_PAD - RIGHT_PAD
       const trackY = box.y
 
-      // draw the track even if there is no data so the band is still visible
       ctx.fillStyle = '#f5f5f5'
       ctx.fillRect(LEFT_PAD, trackY, trackW, trackH)
 
-      for (const r of ranges || []) {
+      for (const r of ranges) {
         if (r.endKm < fromKm || r.startKm > toKm) continue
         const x1 = kmToX(Math.max(r.startKm, fromKm))
         const x2 = kmToX(Math.min(r.endKm, toKm))
         const ww = Math.max(1, x2 - x1) + 1 // overlap to hide hairlines
         ctx.fillStyle = colorFn(r)
-        ctx.fillRect(Math.floor(x1) - 0.5, trackY, ww, trackH)
+        ctx.fillRect(Math.floor(x1)-0.5, trackY, ww, trackH)
 
         const lbl = labelFn ? labelFn(r) : ''
         if (lbl) {
           ctx.fillStyle = '#fff'
           ctx.font = '11px system-ui'
           ctx.textAlign = 'center'
-          ctx.fillText(lbl, x1 + ww / 2 - 0.5, trackY + trackH / 2 + 3)
+          ctx.fillText(lbl, x1 + ww/2 - 0.5, trackY + (trackH/2) + 3)
           ctx.textAlign = 'left'
         }
       }
@@ -225,7 +194,7 @@ export default function SLDCanvasV2({
           drawRanges(box, layers?.surface, r => SURFACE_COLORS[r.surface]||'#bdbdbd', r => r.surface)
           break
         case 'aadt':
-          drawRanges(box, layers?.aadt, () => '#6a1b9a', r => formatAADT(r.aadt))
+          drawRanges(box, layers?.aadt, _ => '#6a1b9a', r => formatAADT(r.aadt))
           break
         case 'status':
           drawRanges(box, layers?.status, r => STATUS_COLORS[r.status]||'#bdbdbd', r => r.status)
@@ -234,16 +203,16 @@ export default function SLDCanvasV2({
           drawRanges(box, layers?.quality, r => QUALITY_COLORS[r.quality]||'#bdbdbd', r => r.quality)
           break
         case 'rowWidth':
-          drawRanges(box, layers?.rowWidth, () => '#1565c0', r => `${r.rowWidthM} m`)
+          drawRanges(box, layers?.rowWidth, _ => '#1565c0', r => `${r.rowWidthM} m`)
           break
         case 'lanes':
-          drawRanges(box, lanesBandEffective, () => '#4e342e', r => `${r.lanes} lanes`)
+          drawRanges(box, layers?.lanes, _ => '#4e342e', r => `${r.lanes} lanes`)
           break
         case 'municipality':
-          drawRanges(box, layers?.municipality, () => '#00796b', r => r.name)
+          drawRanges(box, layers?.municipality, _ => '#00796b', r => r.name)
           break
         case 'bridges':
-          drawRanges(box, layers?.bridges, () => '#5d4037', r => r.name)
+          drawRanges(box, layers?.bridges, _ => '#5d4037', r => r.name)
           break
         default:
           break
@@ -268,10 +237,12 @@ export default function SLDCanvasV2({
     ctx.fillText('km', w-26, layout.axisY+18)
   }
 
-  useEffect(() => {
+  const scheduleDraw = () => {
     cancelAnimationFrame(rafRef.current)
-    rafRef.current = requestAnimationFrame(draw)
-  }, [fromKm, toKm, panX, zoom, layout, layers, segments, lanesBandEffective])
+    rafRef.current = requestAnimationFrame(() => draw())
+  }
+
+  useEffect(() => { scheduleDraw() }, [fromKm, toKm, panX, zoom, layout, layers, segments])
 
   // ---------- interactions ----------
   const bandArrayByKey = (key) => {
@@ -435,14 +406,4 @@ function niceStep(span){
   if (span <= 20)  return 2
   if (span <= 50)  return 5
   return 10
-}
-
-function useMemoLanesBand(layersLanes, segments, fromKm, toKm){
-  return useMemo(()=>{
-    if (layersLanes && layersLanes.length){
-      const ordered = [...layersLanes].sort((a,b)=> a.startKm - b.startKm || a.id - b.id)
-      return mergeRanges(ordered, 'lanes')
-    }
-    return deriveLanesFromSegments(segments)
-  }, [layersLanes, segments, fromKm, toKm])
 }
