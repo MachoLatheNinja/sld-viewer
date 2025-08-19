@@ -8,6 +8,10 @@ const LANE_ROW_H = 126
 const LANE_UNIT  = 24
 const MARK_THICK = 3
 
+const KM_POST_H = 20
+const KM_POST_LABEL_H = 14
+const KM_POST_GAP = 4
+
 const GAP = 8
 const TOP_PAD = 24
 const LEFT_PAD = 60
@@ -62,7 +66,7 @@ export default function SLDCanvasV2({
       y += h
       return box
     })
-      const kmPostY = axisY - 24
+      const kmPostY = axisY - (KM_POST_H + KM_POST_LABEL_H + KM_POST_GAP)
       const totalH = y + 10
       return { lanesY, bandBoxes, axisY, kmPostY, totalH }
 
@@ -84,8 +88,10 @@ export default function SLDCanvasV2({
 
     function drawKmPost(ctx, x, y, label) {
       const topW = 8
-      const botW = 14
-      const h = 20
+      const botW = 24
+      const h = KM_POST_H
+      const rectW = botW
+      const rectH = KM_POST_LABEL_H
       ctx.fillStyle = '#FFC107'
       ctx.beginPath()
       ctx.moveTo(x - topW/2, y)
@@ -94,11 +100,13 @@ export default function SLDCanvasV2({
       ctx.lineTo(x - botW/2, y + h)
       ctx.closePath()
       ctx.fill()
+      ctx.fillRect(x - rectW/2, y + h, rectW, rectH)
       ctx.fillStyle = '#000'
       ctx.font = 'bold 10px system-ui'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText(label, x, y + h/2)
+      ctx.fillText('KM', x, y + h/2)
+      ctx.fillText(label, x, y + h + rectH/2)
       ctx.textAlign = 'left'
       ctx.textBaseline = 'alphabetic'
     }
@@ -180,23 +188,21 @@ export default function SLDCanvasV2({
     ctx.strokeStyle = '#9e9e9e'
     ctx.fillStyle = '#616161'
     ctx.lineWidth = 1
-      const step = niceStep(Math.max(0.001, toKm - fromKm))
+      const step = 0.1 // 100 meters in kilometers
       const startTick = Math.ceil(fromKm / step) * step
+      ctx.textAlign = 'center'
       for (let k = startTick; k <= toKm + 1e-9; k += step) {
         const x = kmToX(k)
         ctx.beginPath()
         ctx.moveTo(x, layout.axisY)
         ctx.lineTo(x, layout.axisY + 6)
         ctx.stroke()
-        if (Math.abs(k - Math.round(k)) < 1e-6) {
-          ctx.font = 'bold 12px system-ui'
-          ctx.fillText(String(Math.round(k)), x - 6, layout.axisY + 18)
-        } else {
-          ctx.font = '10px system-ui'
-          ctx.fillText(k.toFixed(2), x - 8, layout.axisY + 18)
-        }
+        const label = String(Math.round(k * 1000))
+        ctx.font = '10px system-ui'
+        ctx.fillText(label, x, layout.axisY + 18)
       }
-      ctx.fillText('km', w-26, layout.axisY+18)
+      ctx.textAlign = 'left'
+      ctx.fillText('m', w-16, layout.axisY+18)
 
     // ----- BANDS -----
     const drawRanges = (box, ranges, colorFn, labelFn) => {
@@ -427,15 +433,4 @@ export default function SLDCanvasV2({
       </div>
     </div>
   )
-}
-
-function niceStep(span){
-  if (span <= 0.5) return 0.05
-  if (span <= 1)   return 0.1
-  if (span <= 2)   return 0.2
-  if (span <= 5)   return 0.5
-  if (span <= 10)  return 1
-  if (span <= 20)  return 2
-  if (span <= 50)  return 5
-  return 10
 }
