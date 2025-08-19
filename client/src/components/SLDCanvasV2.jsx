@@ -184,11 +184,12 @@ export default function SLDCanvasV2({
     const yCenter = layout.lanesY + LANE_ROW_H/2
     drawDashes(ctx, xStart, xEnd, yCenter, 12, 10, MARK_THICK)
 
-        // KM labels / axis
+                // KM labels / axis
     ctx.strokeStyle = '#9e9e9e'
     ctx.fillStyle = '#616161'
     ctx.lineWidth = 1
-      const step = 0.1 // 100 meters in kilometers
+      const showHundred = zoom >= 40 // show 100m ticks only when sufficiently zoomed in
+      const step = showHundred ? 0.1 : 1
       const startTick = Math.ceil(fromKm / step) * step
       ctx.textAlign = 'center'
       for (let k = startTick; k <= toKm + 1e-9; k += step) {
@@ -197,12 +198,18 @@ export default function SLDCanvasV2({
         ctx.moveTo(x, layout.axisY)
         ctx.lineTo(x, layout.axisY + 6)
         ctx.stroke()
-        const label = String(Math.round(k * 1000))
+        let label
+        if (showHundred) {
+          const isWholeKm = Math.abs(k - Math.round(k)) < 1e-9
+          label = isWholeKm ? String(Math.round(k)) : String(Math.round(k * 1000))
+        } else {
+          label = String(Math.round(k))
+        }
         ctx.font = '10px system-ui'
         ctx.fillText(label, x, layout.axisY + 18)
       }
       ctx.textAlign = 'left'
-      ctx.fillText('m', w-16, layout.axisY+18)
+      ctx.fillText(showHundred ? 'm' : 'km', w-16, layout.axisY+18)
 
     // ----- BANDS -----
     const drawRanges = (box, ranges, colorFn, labelFn) => {
