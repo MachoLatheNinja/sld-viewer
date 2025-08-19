@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react'
 
-export default function ControlBar({ road, domain, onDomainChange, scale, setScale }) {
+export default function ControlBar({ road, domain, onDomainChange }) {
   const lengthKm = Number(road?.lengthKm || 0)
   const from = domain?.fromKm ?? 0
   const to   = domain?.toKm ?? Math.max(10, lengthKm)
@@ -21,9 +21,12 @@ export default function ControlBar({ road, domain, onDomainChange, scale, setSca
     if (newTo > newFrom) onDomainChange(newFrom, newTo)
   }
 
+  const fromM = Math.round(from * 1000)
+  const toM = Math.round(to * 1000)
+
   return (
     <div style={{ display:'flex', alignItems:'center', gap:8, margin:'8px 0' }}>
-      <div><b>LRM</b>: {from.toFixed(2)}–{to.toFixed(2)} km</div>
+      <div><b>LRM</b>: {fromM}–{toM} m</div>
       <div style={{ marginLeft:'auto', display:'flex', gap:6 }}>
         <button onClick={()=>jump(-1)}>◀ Pan 1km</button>
         <button onClick={()=>jump(+1)}>Pan 1km ▶</button>

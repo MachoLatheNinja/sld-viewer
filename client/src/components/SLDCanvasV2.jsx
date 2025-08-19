@@ -28,7 +28,6 @@ export default function SLDCanvasV2({
   domain,
   onDomainChange,
   bands,
-  onBandsChange,
   onMoveSeam,        // (bandKey, leftId, rightId, km, extra={})
 }) {
   const canvasRef = useRef(null)
@@ -54,17 +53,19 @@ export default function SLDCanvasV2({
   const layout = useMemo(()=>{
     let y = TOP_PAD
     const lanesY = y; y += LANE_ROW_H
-    y += GAP
+    // ruler sits just below the road visualization
+    const axisY = y + 2
+    y = axisY + AXIS_H + GAP
     const bandBoxes = bands.map((b) => {
       const h = Math.max(MIN_BAND_H, Math.min(MAX_BAND_H, Number(b.height)||28))
       const box = { y, h, key: b.key, title: b.title }
       y += h
       return box
     })
-    const kmPostY = y + 2
-    const axisY = kmPostY + 20
-    const totalH = axisY + AXIS_H + 10
-    return { lanesY, bandBoxes, kmPostY, axisY, totalH }
+    const totalH = y + 10
+    return { lanesY, bandBoxes, axisY, totalH }
+
+
   }, [bands])
 
   function drawDashes(ctx, x1, x2, y, dashLen = 12, gapLen = 10, thickness = MARK_THICK) {
@@ -79,6 +80,17 @@ export default function SLDCanvasV2({
       ctx.fillRect(Math.round(xi)+0.5, Math.round(y - thickness/2)+0.5, w, thickness)
       xi += period
     }
+  }
+
+    function drawKmPost(ctx, x, y) {
+    ctx.fillStyle = '#795548'
+    ctx.fillRect(x - 2, y, 4, 16)
+    ctx.beginPath()
+    ctx.moveTo(x - 4, y)
+    ctx.lineTo(x, y - 6)
+    ctx.lineTo(x + 4, y)
+    ctx.closePath()
+    ctx.fill()
   }
 
   const lanesAt = (km) => {
@@ -154,6 +166,23 @@ export default function SLDCanvasV2({
     const yCenter = layout.lanesY + LANE_ROW_H/2
     drawDashes(ctx, xStart, xEnd, yCenter, 12, 10, MARK_THICK)
 
+        // KM labels / axis
+    ctx.strokeStyle = '#9e9e9e'
+    ctx.fillStyle = '#616161'
+    ctx.lineWidth = 1
+    ctx.font = '10px system-ui'
+    const step = niceStep(Math.max(0.001, toKm - fromKm))
+    const startTick = Math.ceil(fromKm / step) * step
+    for (let k = startTick; k <= toKm + 1e-9; k += step) {
+      const x = kmToX(k)
+      ctx.beginPath()
+      ctx.moveTo(x, layout.axisY)
+      ctx.lineTo(x, layout.axisY + 6)
+      ctx.stroke()
+      ctx.fillText(k.toFixed(2), x - 8, layout.axisY + 18)
+    }
+    ctx.fillText('km', w-26, layout.axisY+18)
+
     // ----- BANDS -----
     const drawRanges = (box, ranges, colorFn, labelFn) => {
       if (!ranges) return
@@ -194,7 +223,7 @@ export default function SLDCanvasV2({
           drawRanges(box, layers?.surface, r => SURFACE_COLORS[r.surface]||'#bdbdbd', r => r.surface)
           break
         case 'aadt':
-          drawRanges(box, layers?.aadt, _ => '#6a1b9a', r => formatAADT(r.aadt))
+          drawRanges(box, layers?.aadt, () => '#6a1b9a', r => formatAADT(r.aadt))
           break
         case 'status':
           drawRanges(box, layers?.status, r => STATUS_COLORS[r.status]||'#bdbdbd', r => r.status)
@@ -203,38 +232,28 @@ export default function SLDCanvasV2({
           drawRanges(box, layers?.quality, r => QUALITY_COLORS[r.quality]||'#bdbdbd', r => r.quality)
           break
         case 'rowWidth':
-          drawRanges(box, layers?.rowWidth, _ => '#1565c0', r => `${r.rowWidthM} m`)
+          drawRanges(box, layers?.rowWidth, () => '#1565c0', r => `${r.rowWidthM} m`)
           break
         case 'lanes':
-          drawRanges(box, layers?.lanes, _ => '#4e342e', r => `${r.lanes} lanes`)
+          drawRanges(box, layers?.lanes, () => '#4e342e', r => `${r.lanes} lanes`)
           break
         case 'municipality':
-          drawRanges(box, layers?.municipality, _ => '#00796b', r => r.name)
+          drawRanges(box, layers?.municipality, () => '#00796b', r => r.name)
           break
         case 'bridges':
-          drawRanges(box, layers?.bridges, _ => '#5d4037', r => r.name)
+          drawRanges(box, layers?.bridges, () => '#5d4037', r => r.name)
           break
         default:
           break
       }
     }
-
-    // KM labels / axis
-    ctx.strokeStyle = '#9e9e9e'
-    ctx.fillStyle = '#616161'
-    ctx.lineWidth = 1
-    ctx.font = '10px system-ui'
-    const step = niceStep(Math.max(0.001, toKm - fromKm))
-    const startTick = Math.ceil(fromKm / step) * step
-    for(let k=startTick; k<=toKm+1e-9; k+=step){
+    // kilometer posts
+    const minPost = Math.ceil(fromKm)
+    const maxPost = Math.floor(toKm)
+    for (let k = minPost; k <= maxPost; k++) {
       const x = kmToX(k)
-      ctx.beginPath()
-      ctx.moveTo(x, layout.axisY)
-      ctx.lineTo(x, layout.axisY+6)
-      ctx.stroke()
-      ctx.fillText(k.toFixed(2), x-8, layout.axisY+18)
+      drawKmPost(ctx, x, layout.kmPostY)
     }
-    ctx.fillText('km', w-26, layout.axisY+18)
   }
 
   const scheduleDraw = () => {
