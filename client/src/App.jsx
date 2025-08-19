@@ -23,9 +23,7 @@ export default function App() {
 
   const [fromKm, setFromKm] = useState(0)
   const [toKm, setToKm] = useState(10)
-  const [scale, setScale] = useState(0.1)
-
-  const [bands, setBands] = useState(() => DEFAULT_BANDS)
+  const [bands] = useState(() => DEFAULT_BANDS)
   const domain = useMemo(() => ({ fromKm, toKm }), [fromKm, toKm])
 
   useEffect(() => {
@@ -90,20 +88,17 @@ export default function App() {
           road={road}
           domain={domain}
           onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
-          scale={scale}
-          setScale={setScale}
         />
 
-        <SLDCanvasV2
-          road={road}
-          segments={segments}
-          layers={layers}
-          domain={domain}
-          onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
-          bands={bands}
-          onBandsChange={setBands}
-          onMoveSeam={handleMoveSeam}
-        />
+          <SLDCanvasV2
+            road={road}
+            segments={segments}
+            layers={layers}
+            domain={domain}
+            onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
+            bands={bands}
+            onMoveSeam={handleMoveSeam}
+          />
       </div>
     </div>
   )
