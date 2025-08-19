@@ -23,8 +23,9 @@ export default function App() {
 
   const [fromKm, setFromKm] = useState(0)
   const [toKm, setToKm] = useState(10)
+  const [scale, setScale] = useState(0.1)
 
-  const bands = DEFAULT_BANDS
+  const [bands, setBands] = useState(() => DEFAULT_BANDS)
   const domain = useMemo(() => ({ fromKm, toKm }), [fromKm, toKm])
 
   useEffect(() => {
@@ -51,7 +52,7 @@ export default function App() {
   const onSearch = async () => {
     const r = await fetchRoads(q)
     setRoads(r)
-    setRoad(r[0] || null)
+    if (r.length) setRoad(r[0])
   }
 
   // ✅ Forward the optional extras (like { edge: 'start' } for bridges)
@@ -89,6 +90,8 @@ export default function App() {
           road={road}
           domain={domain}
           onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
+          scale={scale}
+          setScale={setScale}
         />
 
         <SLDCanvasV2
@@ -98,6 +101,7 @@ export default function App() {
           domain={domain}
           onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
           bands={bands}
+          onBandsChange={setBands}
           onMoveSeam={handleMoveSeam}
         />
       </div>

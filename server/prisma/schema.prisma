@@ -1,144 +1,157 @@
-// Road Analyzer: each band in its own table + point events for KM posts.
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
-  // Make sure your DATABASE_URL is set correctly. If you use a dedicated schema:
-  // postgresql://user:pass@host:5432/dbname?schema=road_analyzer
   url      = env("DATABASE_URL")
 }
 
+// ---- Core entities ----------------------------------------------------------
+
 model Road {
-  id        Int       @id @default(autoincrement())
-  name      String
-  lengthKm  Float
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id       Int    @id @default(autoincrement())
+  name     String
+  lengthKm Float
 
-  segments  Segment[]
+  // back-relations (required so Prisma is happy)
+  segments          Segment[]
+  surfaceBands      SurfaceBand[]
+  aadtBands         AadtBand[]
+  statusBands       StatusBand[]
+  qualityBands      QualityBand[]
+  lanesBands        LanesBand[]
+  rowWidthBands     RowWidthBand[]
+  municipalityBands MunicipalityBand[]
+  bridgeBands       BridgeBand[]
+  kmPosts           KmPost[]
 
-  // per-band relations
-  surface   SurfaceBand[]
-  aadt      AadtBand[]
-  status    StatusBand[]
-  quality   QualityBand[]
-  lanes     LanesBand[]
-  rowWidth  RowWidthBand[]
-  muni      MunicipalityBand[]
-  bridge    BridgeBand[]
-  kmPosts   KmPost[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-// Legacy segment table (kept for compatibility / fallback)
 model Segment {
-  id         Int     @id @default(autoincrement())
+  id         Int      @id @default(autoincrement())
   roadId     Int
   startKm    Float
   endKm      Float
-
+  surface    String?
   lanesLeft  Int?
   lanesRight Int?
-  surface    String?
   status     String?
   quality    String?
-  sidewalk   Boolean?
-  aadt       Int?
-
-  road Road  @relation(fields: [roadId], references: [id])
+  road       Road     @relation(fields: [roadId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([roadId, startKm, endKm])
 }
 
-// -------- Range bands --------
+// ---- Per-band range tables --------------------------------------------------
+
 model SurfaceBand {
-  id       Int    @id @default(autoincrement())
-  roadId   Int
-  startKm  Float
-  endKm    Float
-  surface  String
-  road     Road   @relation(fields: [roadId], references: [id])
+  id      Int    @id @default(autoincrement())
+  roadId  Int
+  startKm Float
+  endKm   Float
+  surface String
+  road    Road   @relation(fields: [roadId], references: [id])
+
   @@index([roadId, startKm, endKm])
 }
 
 model AadtBand {
-  id       Int   @id @default(autoincrement())
-  roadId   Int
-  startKm  Float
-  endKm    Float
-  aadt     Int
-  road     Road  @relation(fields: [roadId], references: [id])
+  id      Int   @id @default(autoincrement())
+  roadId  Int
+  startKm Float
+  endKm   Float
+  aadt    Int
+  road    Road  @relation(fields: [roadId], references: [id])
+
   @@index([roadId, startKm, endKm])
 }
 
 model StatusBand {
-  id       Int    @id @default(autoincrement())
-  roadId   Int
-  startKm  Float
-  endKm    Float
-  status   String
-  road     Road   @relation(fields: [roadId], references: [id])
+  id      Int    @id @default(autoincrement())
+  roadId  Int
+  startKm Float
+  endKm   Float
+  status  String
+  road    Road   @relation(fields: [roadId], references: [id])
+
   @@index([roadId, startKm, endKm])
 }
 
 model QualityBand {
-  id       Int    @id @default(autoincrement())
-  roadId   Int
-  startKm  Float
-  endKm    Float
-  quality  String
-  road     Road   @relation(fields: [roadId], references: [id])
+  id      Int    @id @default(autoincrement())
+  roadId  Int
+  startKm Float
+  endKm   Float
+  quality String
+  road    Road   @relation(fields: [roadId], references: [id])
+
   @@index([roadId, startKm, endKm])
 }
 
+// Which side gets the extra lane when LanesBand.lanes is odd
+enum SideBias {
+  TOP
+  BOTTOM
+}
+
 model LanesBand {
-  id       Int   @id @default(autoincrement())
+  id       Int      @id @default(autoincrement())
   roadId   Int
   startKm  Float
   endKm    Float
   lanes    Int
-  road     Road  @relation(fields: [roadId], references: [id])
+  sideBias SideBias @default(TOP)
+  road     Road     @relation(fields: [roadId], references: [id])
+
   @@index([roadId, startKm, endKm])
 }
 
 model RowWidthBand {
-  id        Int    @id @default(autoincrement())
+  id        Int   @id @default(autoincrement())
   roadId    Int
   startKm   Float
   endKm     Float
-  rowWidthM Float
-  road      Road   @relation(fields: [roadId], references: [id])
+  rowWidthM Int
+  road      Road  @relation(fields: [roadId], references: [id])
+
   @@index([roadId, startKm, endKm])
 }
 
 model MunicipalityBand {
-  id       Int    @id @default(autoincrement())
-  roadId   Int
-  startKm  Float
-  endKm    Float
-  name     String
-  road     Road   @relation(fields: [roadId], references: [id])
+  id      Int    @id @default(autoincrement())
+  roadId  Int
+  startKm Float
+  endKm   Float
+  name    String
+  road    Road   @relation(fields: [roadId], references: [id])
+
   @@index([roadId, startKm, endKm])
 }
 
 model BridgeBand {
-  id       Int    @id @default(autoincrement())
-  roadId   Int
-  startKm  Float
-  endKm    Float
-  name     String
-  road     Road   @relation(fields: [roadId], references: [id])
+  id      Int    @id @default(autoincrement())
+  roadId  Int
+  startKm Float
+  endKm   Float
+  name    String
+  road    Road   @relation(fields: [roadId], references: [id])
+
   @@index([roadId, startKm, endKm])
 }
 
-// -------- Point events --------
+// ---- Point events -----------------------------------------------------------
+
 model KmPost {
-  id     Int    @id @default(autoincrement())
+  id     Int     @id @default(autoincrement())
   roadId Int
   km     Float
-  label  String
-  road   Road   @relation(fields: [roadId], references: [id])
+  label  String?
+  road   Road    @relation(fields: [roadId], references: [id])
+
   @@index([roadId, km])
 }

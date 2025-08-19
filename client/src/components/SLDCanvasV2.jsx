@@ -28,6 +28,7 @@ export default function SLDCanvasV2({
   domain,
   onDomainChange,
   bands,
+  onBandsChange,
   onMoveSeam,        // (bandKey, leftId, rightId, km, extra={})
 }) {
   const canvasRef = useRef(null)
@@ -193,7 +194,7 @@ export default function SLDCanvasV2({
           drawRanges(box, layers?.surface, r => SURFACE_COLORS[r.surface]||'#bdbdbd', r => r.surface)
           break
         case 'aadt':
-          drawRanges(box, layers?.aadt, () => '#6a1b9a', r => formatAADT(r.aadt))
+          drawRanges(box, layers?.aadt, _ => '#6a1b9a', r => formatAADT(r.aadt))
           break
         case 'status':
           drawRanges(box, layers?.status, r => STATUS_COLORS[r.status]||'#bdbdbd', r => r.status)
@@ -202,16 +203,16 @@ export default function SLDCanvasV2({
           drawRanges(box, layers?.quality, r => QUALITY_COLORS[r.quality]||'#bdbdbd', r => r.quality)
           break
         case 'rowWidth':
-          drawRanges(box, layers?.rowWidth, () => '#1565c0', r => `${r.rowWidthM} m`)
+          drawRanges(box, layers?.rowWidth, _ => '#1565c0', r => `${r.rowWidthM} m`)
           break
         case 'lanes':
-          drawRanges(box, layers?.lanes, () => '#4e342e', r => `${r.lanes} lanes`)
+          drawRanges(box, layers?.lanes, _ => '#4e342e', r => `${r.lanes} lanes`)
           break
         case 'municipality':
-          drawRanges(box, layers?.municipality, () => '#00796b', r => r.name)
+          drawRanges(box, layers?.municipality, _ => '#00796b', r => r.name)
           break
         case 'bridges':
-          drawRanges(box, layers?.bridges, () => '#5d4037', r => r.name)
+          drawRanges(box, layers?.bridges, _ => '#5d4037', r => r.name)
           break
         default:
           break

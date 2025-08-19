@@ -3,7 +3,7 @@
 npm-debug.log*
 
 # Environment files
-.env
+server/.env
 server/.env
 client/.env
 
