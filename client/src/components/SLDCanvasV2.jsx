@@ -62,11 +62,11 @@ export default function SLDCanvasV2({
       y += h
       return box
     })
-    const totalH = y + 10
-    return { lanesY, bandBoxes, axisY, totalH }
+      const kmPostY = axisY - 24
+      const totalH = y + 10
+      return { lanesY, bandBoxes, axisY, kmPostY, totalH }
 
-
-  }, [bands])
+    }, [bands])
 
   function drawDashes(ctx, x1, x2, y, dashLen = 12, gapLen = 10, thickness = MARK_THICK) {
     const usableStart = x1 + 6
@@ -82,16 +82,26 @@ export default function SLDCanvasV2({
     }
   }
 
-    function drawKmPost(ctx, x, y) {
-    ctx.fillStyle = '#795548'
-    ctx.fillRect(x - 2, y, 4, 16)
-    ctx.beginPath()
-    ctx.moveTo(x - 4, y)
-    ctx.lineTo(x, y - 6)
-    ctx.lineTo(x + 4, y)
-    ctx.closePath()
-    ctx.fill()
-  }
+    function drawKmPost(ctx, x, y, label) {
+      const topW = 8
+      const botW = 14
+      const h = 20
+      ctx.fillStyle = '#FFC107'
+      ctx.beginPath()
+      ctx.moveTo(x - topW/2, y)
+      ctx.lineTo(x + topW/2, y)
+      ctx.lineTo(x + botW/2, y + h)
+      ctx.lineTo(x - botW/2, y + h)
+      ctx.closePath()
+      ctx.fill()
+      ctx.fillStyle = '#000'
+      ctx.font = 'bold 10px system-ui'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(label, x, y + h/2)
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'alphabetic'
+    }
 
   const lanesAt = (km) => {
     const arr = layers?.lanes || []
@@ -113,7 +123,7 @@ export default function SLDCanvasV2({
     return 'Asphalt'
   }
 
-  const draw = () => {
+    const draw = () => {
     const canvas = canvasRef.current; if (!canvas) return
     const ctx = canvas.getContext('2d')
     const w = canvas.clientWidth || 1200
@@ -170,18 +180,23 @@ export default function SLDCanvasV2({
     ctx.strokeStyle = '#9e9e9e'
     ctx.fillStyle = '#616161'
     ctx.lineWidth = 1
-    ctx.font = '10px system-ui'
-    const step = niceStep(Math.max(0.001, toKm - fromKm))
-    const startTick = Math.ceil(fromKm / step) * step
-    for (let k = startTick; k <= toKm + 1e-9; k += step) {
-      const x = kmToX(k)
-      ctx.beginPath()
-      ctx.moveTo(x, layout.axisY)
-      ctx.lineTo(x, layout.axisY + 6)
-      ctx.stroke()
-      ctx.fillText(k.toFixed(2), x - 8, layout.axisY + 18)
-    }
-    ctx.fillText('km', w-26, layout.axisY+18)
+      const step = niceStep(Math.max(0.001, toKm - fromKm))
+      const startTick = Math.ceil(fromKm / step) * step
+      for (let k = startTick; k <= toKm + 1e-9; k += step) {
+        const x = kmToX(k)
+        ctx.beginPath()
+        ctx.moveTo(x, layout.axisY)
+        ctx.lineTo(x, layout.axisY + 6)
+        ctx.stroke()
+        if (Math.abs(k - Math.round(k)) < 1e-6) {
+          ctx.font = 'bold 12px system-ui'
+          ctx.fillText(String(Math.round(k)), x - 6, layout.axisY + 18)
+        } else {
+          ctx.font = '10px system-ui'
+          ctx.fillText(k.toFixed(2), x - 8, layout.axisY + 18)
+        }
+      }
+      ctx.fillText('km', w-26, layout.axisY+18)
 
     // ----- BANDS -----
     const drawRanges = (box, ranges, colorFn, labelFn) => {
@@ -248,20 +263,18 @@ export default function SLDCanvasV2({
       }
     }
     // kilometer posts
-    const minPost = Math.ceil(fromKm)
-    const maxPost = Math.floor(toKm)
-    for (let k = minPost; k <= maxPost; k++) {
-      const x = kmToX(k)
-      drawKmPost(ctx, x, layout.kmPostY)
-    }
-  }
+      const minPost = Math.ceil(fromKm)
+      const maxPost = Math.floor(toKm)
+        for (let k = minPost; k <= maxPost; k++) {
+          const x = kmToX(k)
+          drawKmPost(ctx, x, layout.kmPostY, String(k))
+        }
+      }
 
-  const scheduleDraw = () => {
-    cancelAnimationFrame(rafRef.current)
-    rafRef.current = requestAnimationFrame(() => draw())
-  }
-
-  useEffect(() => { scheduleDraw() }, [fromKm, toKm, panX, zoom, layout, layers, segments])
+        useEffect(() => {
+          cancelAnimationFrame(rafRef.current)
+          rafRef.current = requestAnimationFrame(() => draw())
+        }, [fromKm, toKm, panX, zoom, layout, layers, segments]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------- interactions ----------
   const bandArrayByKey = (key) => {
