@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react'
 
-export default function ControlBar({ road, domain, onDomainChange, scale, setScale }) {
+export default function ControlBar({ road, domain, onDomainChange }) {
   const lengthKm = Number(road?.lengthKm || 0)
   const from = domain?.fromKm ?? 0
   const to   = domain?.toKm ?? Math.max(10, lengthKm)
