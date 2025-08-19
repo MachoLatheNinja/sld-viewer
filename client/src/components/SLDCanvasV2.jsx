@@ -86,30 +86,30 @@ export default function SLDCanvasV2({
     }
   }
 
-  function drawKmPost(ctx, x, y, km) {
-    const topW = 8
-    const botW = 24
-    const h = KM_POST_H
-    const rectW = botW
-    const rectH = KM_POST_LABEL_H
-    ctx.fillStyle = '#FFC107'
-    ctx.beginPath()
-    ctx.moveTo(x - topW/2, y)
-    ctx.lineTo(x + topW/2, y)
-    ctx.lineTo(x + botW/2, y + h)
-    ctx.lineTo(x - botW/2, y + h)
-    ctx.closePath()
-    ctx.fill()
-    ctx.fillRect(x - rectW/2, y + h, rectW, rectH)
-    ctx.fillStyle = '#000'
-    ctx.font = 'bold 10px system-ui'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText('KM', x, y + h/2)
-    ctx.fillText(String(Math.round(km)), x, y + h + rectH/2)
-    ctx.textAlign = 'left'
-    ctx.textBaseline = 'alphabetic'
-  }
+    function drawKmPost(ctx, x, y, label) {
+      const topW = 8
+      const botW = 24
+      const h = KM_POST_H
+      const rectW = botW
+      const rectH = KM_POST_LABEL_H
+      ctx.fillStyle = '#FFC107'
+      ctx.beginPath()
+      ctx.moveTo(x - topW/2, y)
+      ctx.lineTo(x + topW/2, y)
+      ctx.lineTo(x + botW/2, y + h)
+      ctx.lineTo(x - botW/2, y + h)
+      ctx.closePath()
+      ctx.fill()
+      ctx.fillRect(x - rectW/2, y + h, rectW, rectH)
+      ctx.fillStyle = '#000'
+      ctx.font = 'bold 10px system-ui'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText('KM', x, y + h/2)
+      ctx.fillText(label, x, y + h + rectH/2)
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'alphabetic'
+    }
 
   const lanesAt = (km) => {
     const arr = layers?.lanes || []
@@ -184,11 +184,11 @@ export default function SLDCanvasV2({
     const yCenter = layout.lanesY + LANE_ROW_H/2
     drawDashes(ctx, xStart, xEnd, yCenter, 12, 10, MARK_THICK)
 
-                // KM labels / axis
+        // KM labels / axis
     ctx.strokeStyle = '#9e9e9e'
     ctx.fillStyle = '#616161'
     ctx.lineWidth = 1
-      const showHundred = zoom >= 80 && zoom < 160 // show 100m ticks only at medium zoom levels
+      const showHundred = zoom >= 40 // show 100m ticks only when sufficiently zoomed in
       const step = showHundred ? 0.1 : 1
       const startTick = Math.ceil(fromKm / step) * step
       ctx.textAlign = 'center'
@@ -276,13 +276,13 @@ export default function SLDCanvasV2({
       }
     }
     // kilometer posts
-    const posts = layers?.kmPosts || []
-    for (const p of posts) {
-      const kmVal = Number(p.km)
-      if (kmVal < fromKm || kmVal > toKm) continue
-      const x = kmToX(kmVal)
-      drawKmPost(ctx, x, layout.kmPostY, kmVal)
-    }
+      const minPost = Math.ceil(fromKm)
+      const maxPost = Math.floor(toKm)
+        for (let k = minPost; k <= maxPost; k++) {
+          const x = kmToX(k)
+          drawKmPost(ctx, x, layout.kmPostY, String(k))
+        }
+      }
 
         useEffect(() => {
           cancelAnimationFrame(rafRef.current)
