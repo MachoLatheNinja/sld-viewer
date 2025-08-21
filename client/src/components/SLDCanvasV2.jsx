@@ -190,9 +190,9 @@ export default function SLDCanvasV2({
     ctx.lineWidth = 1
       const minPost = Math.ceil(fromKm)
       const maxPost = Math.floor(toKm)
-      const postCount = maxPost >= minPost ? (maxPost - minPost + 1) : 0
-      // show 100m ticks only at high zoom and when two or fewer KM posts are visible
-      const showHundred = zoom >= 80 && zoom < 160 && postCount <= 2
+      const spanKm = toKm - fromKm
+      // show 100m ticks when viewing 2 km or less of road
+      const showHundred = spanKm <= 2
       const step = showHundred ? 0.1 : 1
       const startTick = Math.ceil(fromKm / step) * step
       ctx.textAlign = 'center'
