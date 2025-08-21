@@ -41,7 +41,6 @@ model Segment {
     status     String?
     quality    String?
     road       Road     @relation(fields: [roadId], references: [id])
-    chainages  Chainage[]
     createdAt  DateTime @default(now())
     updatedAt  DateTime @updatedAt
 
@@ -148,24 +147,11 @@ model BridgeBand {
 // ---- Point events -----------------------------------------------------------
 
 model KmPost {
-  id     Int     @id @default(autoincrement())
-  roadId Int
-  km     Float
-  label  String?
-  road   Road    @relation(fields: [roadId], references: [id])
-  chainages Chainage[]
+  id       Int     @id @default(autoincrement())
+  roadId   Int     @map("section_id")
+  chainage Float
+  lrp      String
+  road     Road    @relation(fields: [roadId], references: [id])
 
-  @@index([roadId, km])
-}
-
-model Chainage {
-  id        Int     @id @default(autoincrement())
-  sectionId Int     @map("section_id")
-  kmPostId  Int     @map("km_post_id")
-  chainage  Float
-  lrp       String
-  section   Segment @relation(fields: [sectionId], references: [id])
-  kmPost    KmPost  @relation(fields: [kmPostId], references: [id])
-
-  @@index([sectionId, kmPostId, chainage])
+  @@index([roadId, chainage])
 }
