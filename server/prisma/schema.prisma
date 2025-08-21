@@ -12,10 +12,11 @@ datasource db {
 model Road {
   id       Int    @id @default(autoincrement())
   name     String
-  lengthKm Float
+  lengthM  Float
 
   // back-relations (required so Prisma is happy)
   segments          Segment[]
+  sections          Section[]
   surfaceBands      SurfaceBand[]
   aadtBands         AadtBand[]
   statusBands       StatusBand[]
@@ -33,8 +34,8 @@ model Road {
 model Segment {
     id         Int      @id @default(autoincrement())
     roadId     Int
-    startKm    Float
-    endKm      Float
+    startM     Float
+    endM       Float
     surface    String?
     lanesLeft  Int?
     lanesRight Int?
@@ -44,7 +45,19 @@ model Segment {
     createdAt  DateTime @default(now())
     updatedAt  DateTime @updatedAt
 
-  @@index([roadId, startKm, endKm])
+  @@index([roadId, startM, endM])
+}
+
+model Section {
+  id       Int      @id @default(autoincrement())
+  roadId   Int
+  startM   Float
+  endM     Float
+  road     Road     @relation(fields: [roadId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([roadId, startM, endM])
 }
 
 // ---- Per-band range tables --------------------------------------------------
@@ -52,45 +65,45 @@ model Segment {
 model SurfaceBand {
   id      Int    @id @default(autoincrement())
   roadId  Int
-  startKm Float
-  endKm   Float
+  startM  Float
+  endM    Float
   surface String
   road    Road   @relation(fields: [roadId], references: [id])
 
-  @@index([roadId, startKm, endKm])
+  @@index([roadId, startM, endM])
 }
 
 model AadtBand {
   id      Int   @id @default(autoincrement())
   roadId  Int
-  startKm Float
-  endKm   Float
+  startM  Float
+  endM    Float
   aadt    Int
   road    Road  @relation(fields: [roadId], references: [id])
 
-  @@index([roadId, startKm, endKm])
+  @@index([roadId, startM, endM])
 }
 
 model StatusBand {
   id      Int    @id @default(autoincrement())
   roadId  Int
-  startKm Float
-  endKm   Float
+  startM  Float
+  endM    Float
   status  String
   road    Road   @relation(fields: [roadId], references: [id])
 
-  @@index([roadId, startKm, endKm])
+  @@index([roadId, startM, endM])
 }
 
 model QualityBand {
   id      Int    @id @default(autoincrement())
   roadId  Int
-  startKm Float
-  endKm   Float
+  startM  Float
+  endM    Float
   quality String
   road    Road   @relation(fields: [roadId], references: [id])
 
-  @@index([roadId, startKm, endKm])
+  @@index([roadId, startM, endM])
 }
 
 // Which side gets the extra lane when LanesBand.lanes is odd
@@ -102,56 +115,56 @@ enum SideBias {
 model LanesBand {
   id       Int      @id @default(autoincrement())
   roadId   Int
-  startKm  Float
-  endKm    Float
+  startM   Float
+  endM     Float
   lanes    Int
   sideBias SideBias @default(TOP)
   road     Road     @relation(fields: [roadId], references: [id])
 
-  @@index([roadId, startKm, endKm])
+  @@index([roadId, startM, endM])
 }
 
 model RowWidthBand {
   id        Int   @id @default(autoincrement())
   roadId    Int
-  startKm   Float
-  endKm     Float
+  startM    Float
+  endM      Float
   rowWidthM Int
   road      Road  @relation(fields: [roadId], references: [id])
 
-  @@index([roadId, startKm, endKm])
+  @@index([roadId, startM, endM])
 }
 
 model MunicipalityBand {
   id      Int    @id @default(autoincrement())
   roadId  Int
-  startKm Float
-  endKm   Float
+  startM  Float
+  endM    Float
   name    String
   road    Road   @relation(fields: [roadId], references: [id])
 
-  @@index([roadId, startKm, endKm])
+  @@index([roadId, startM, endM])
 }
 
 model BridgeBand {
   id      Int    @id @default(autoincrement())
   roadId  Int
-  startKm Float
-  endKm   Float
+  startM  Float
+  endM    Float
   name    String
   road    Road   @relation(fields: [roadId], references: [id])
 
-  @@index([roadId, startKm, endKm])
+  @@index([roadId, startM, endM])
 }
 
 // ---- Point events -----------------------------------------------------------
 
 model KmPost {
-  id       Int     @id @default(autoincrement())
-  roadId   Int     @map("section_id")
-  chainage Float
-  lrp      String
-  road     Road    @relation(fields: [roadId], references: [id])
+  id        Int     @id @default(autoincrement())
+  roadId    Int     @map("section_id")
+  chainageM Float
+  lrp       String
+  road      Road    @relation(fields: [roadId], references: [id])
 
-  @@index([roadId, chainage])
+  @@index([roadId, chainageM])
 }
