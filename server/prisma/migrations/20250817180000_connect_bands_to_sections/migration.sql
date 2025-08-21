@@ -50,7 +50,8 @@ ALTER INDEX "BridgeBand_roadId_startM_endM_idx" RENAME TO "BridgeBand_section_id
 
 -- KmPost
 ALTER TABLE "KmPost" DROP CONSTRAINT "KmPost_roadId_fkey";
-ALTER TABLE "KmPost" RENAME COLUMN "roadId" TO "section_id";
-ALTER TABLE "KmPost" ADD CONSTRAINT "KmPost_section_id_fkey" FOREIGN KEY ("section_id") REFERENCES "Section"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "KmPost" ADD CONSTRAINT "KmPost_section_id_fkey"
+  FOREIGN KEY ("section_id") REFERENCES "Section"("id")
+  ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER INDEX "KmPost_road_chainageM_idx" RENAME TO "KmPost_section_chainageM_idx";
 
