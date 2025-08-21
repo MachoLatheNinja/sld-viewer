@@ -86,7 +86,7 @@ export default function SLDCanvasV2({
     }
   }
 
-    function drawKmPost(ctx, x, y, label) {
+    function drawKmPost(ctx, x, y, kmValue) {
       const topW = 8
       const botW = 24
       const h = KM_POST_H
@@ -106,7 +106,7 @@ export default function SLDCanvasV2({
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       ctx.fillText('KM', x, y + h/2)
-      ctx.fillText(label, x, y + h + rectH/2)
+      ctx.fillText(String(kmValue), x, y + h + rectH/2)
       ctx.textAlign = 'left'
       ctx.textBaseline = 'alphabetic'
     }
@@ -188,7 +188,11 @@ export default function SLDCanvasV2({
     ctx.strokeStyle = '#9e9e9e'
     ctx.fillStyle = '#616161'
     ctx.lineWidth = 1
-      const showHundred = zoom >= 40 // show 100m ticks only when sufficiently zoomed in
+      const minPost = Math.ceil(fromKm)
+      const maxPost = Math.floor(toKm)
+      const postCount = maxPost >= minPost ? (maxPost - minPost + 1) : 0
+      // show 100m ticks only at high zoom and when two or fewer KM posts are visible
+      const showHundred = zoom >= 80 && zoom < 160 && postCount <= 2
       const step = showHundred ? 0.1 : 1
       const startTick = Math.ceil(fromKm / step) * step
       ctx.textAlign = 'center'
@@ -276,13 +280,11 @@ export default function SLDCanvasV2({
       }
     }
     // kilometer posts
-      const minPost = Math.ceil(fromKm)
-      const maxPost = Math.floor(toKm)
-        for (let k = minPost; k <= maxPost; k++) {
-          const x = kmToX(k)
-          drawKmPost(ctx, x, layout.kmPostY, String(k))
-        }
+      for (let k = minPost; k <= maxPost; k++) {
+        const x = kmToX(k)
+        drawKmPost(ctx, x, layout.kmPostY, k)
       }
+    }
 
         useEffect(() => {
           cancelAnimationFrame(rafRef.current)
