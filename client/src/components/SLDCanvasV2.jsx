@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { DEFAULT_BANDS } from '../bands'
 
 const SURFACE_COLORS = { Asphalt:'#282828', Concrete:'#a1a1a1', Gravel:'#8d6e63' }
 const QUALITY_COLORS = { Poor:'#e53935', Fair:'#fb8c00', Good:'#43a047', Excellent:'#1e88e5' }
@@ -31,7 +32,7 @@ export default function SLDCanvasV2({
   layers,
   domain,
   onDomainChange,
-  bands,
+  bands = DEFAULT_BANDS,
   onMoveSeam,        // (bandKey, leftId, rightId, km, extra={})
 }) {
   const canvasRef = useRef(null)
