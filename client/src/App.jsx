@@ -18,7 +18,10 @@ export default function App() {
   const [roads, setRoads] = useState([])
   const [q, setQ] = useState('')
   const [road, setRoad] = useState(null)
+  const [sectionList, setSectionList] = useState([])
+  const [sectionId, setSectionId] = useState(null)
   const [segments, setSegments] = useState([])
+  const [allLayers, setAllLayers] = useState(null)
   const [layers, setLayers] = useState(null)
 
   const [fromKm, setFromKm] = useState(0)
@@ -26,6 +29,11 @@ export default function App() {
 
   const [bands] = useState(() => DEFAULT_BANDS)
   const domain = useMemo(() => ({ fromKm, toKm }), [fromKm, toKm])
+  const currentSection = useMemo(() => sectionList.find(s => s.id === sectionId) || null, [sectionList, sectionId])
+  const currentRoad = useMemo(() => {
+    if (!currentSection) return road
+    return { ...road, lengthKm: currentSection.endKm - currentSection.startKm }
+  }, [road, currentSection])
 
   useEffect(() => {
     (async () => {
@@ -39,14 +47,56 @@ export default function App() {
     if (!road) return
     ;(async () => {
       const seg = await fetchSegments(road.id)
-      setSegments(seg.segments || [])
-      const L = Number(seg.road?.lengthKm || road.lengthKm || 10)
-      setFromKm(0); setToKm(L)
+      const list = seg.segments || []
+      setSectionList(list)
+      const first = list[0]
+      setSectionId(first?.id || null)
 
       const ly = await fetchLayers(road.id)
-      setLayers(ly)
+      setAllLayers(ly)
     })()
   }, [road])
+
+  useEffect(() => {
+    if (!sectionId) { setSegments([]); setLayers(null); return }
+    const section = sectionList.find(s => s.id === sectionId)
+    if (!section) { setSegments([]); setLayers(null); return }
+    const start = section.startKm
+    const end   = section.endKm
+    const length = end - start
+    setFromKm(0); setToKm(length)
+
+    const segs = sectionList
+      .filter(s => s.endKm > start && s.startKm < end)
+      .map(s => ({ ...s, startKm: s.startKm - start, endKm: s.endKm - start }))
+    setSegments(segs)
+
+    const slice = (arr = []) => arr
+      .filter(r => r.endKm > start && r.startKm < end)
+      .map(r => ({
+        ...r,
+        startKm: Math.max(r.startKm, start) - start,
+        endKm: Math.min(r.endKm, end) - start,
+      }))
+
+    const slicePosts = (arr = []) => arr
+      .filter(p => p.chainageKm >= start && p.chainageKm <= end)
+      .map(p => ({ ...p, chainageKm: p.chainageKm - start }))
+
+    if (allLayers) {
+      setLayers({
+        surface: slice(allLayers.surface),
+        aadt: slice(allLayers.aadt),
+        status: slice(allLayers.status),
+        quality: slice(allLayers.quality),
+        lanes: slice(allLayers.lanes),
+        rowWidth: slice(allLayers.rowWidth),
+        municipality: slice(allLayers.municipality),
+        bridges: slice(allLayers.bridges),
+        kmPosts: slicePosts(allLayers.kmPosts),
+      })
+    }
+  }, [sectionId, sectionList, allLayers])
 
   const onSearch = async () => {
     const r = await fetchRoads(q)
@@ -82,17 +132,23 @@ export default function App() {
             >
               {roads.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
+            <select
+              value={sectionId || ''}
+              onChange={(e)=>setSectionId(Number(e.target.value))}
+            >
+              {sectionList.map(s => <option key={s.id} value={s.id}>{s.id}</option>)}
+            </select>
           </div>
         </div>
 
         <ControlBar
-          road={road}
+          road={currentRoad}
           domain={domain}
           onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
         />
 
         <SLDCanvasV2
-          road={road}
+          road={currentRoad}
           segments={segments}
           layers={layers}
           domain={domain}
