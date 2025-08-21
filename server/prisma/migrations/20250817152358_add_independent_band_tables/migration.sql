@@ -86,15 +86,6 @@ CREATE TABLE "BridgeBand" (
     CONSTRAINT "BridgeBand_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
-CREATE TABLE "KmPost" (
-    "id" SERIAL NOT NULL,
-    "roadId" INTEGER NOT NULL,
-    "km" DOUBLE PRECISION NOT NULL,
-    "label" TEXT NOT NULL,
-
-    CONSTRAINT "KmPost_pkey" PRIMARY KEY ("id")
-);
 
 -- CreateIndex
 CREATE INDEX "SurfaceBand_roadId_startKm_endKm_idx" ON "SurfaceBand"("roadId", "startKm", "endKm");
@@ -120,8 +111,6 @@ CREATE INDEX "MunicipalityBand_roadId_startKm_endKm_idx" ON "MunicipalityBand"("
 -- CreateIndex
 CREATE INDEX "BridgeBand_roadId_startKm_endKm_idx" ON "BridgeBand"("roadId", "startKm", "endKm");
 
--- CreateIndex
-CREATE INDEX "KmPost_roadId_km_idx" ON "KmPost"("roadId", "km");
 
 -- AddForeignKey
 ALTER TABLE "SurfaceBand" ADD CONSTRAINT "SurfaceBand_roadId_fkey" FOREIGN KEY ("roadId") REFERENCES "Road"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -147,5 +136,3 @@ ALTER TABLE "MunicipalityBand" ADD CONSTRAINT "MunicipalityBand_roadId_fkey" FOR
 -- AddForeignKey
 ALTER TABLE "BridgeBand" ADD CONSTRAINT "BridgeBand_roadId_fkey" FOREIGN KEY ("roadId") REFERENCES "Road"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- AddForeignKey
-ALTER TABLE "KmPost" ADD CONSTRAINT "KmPost_roadId_fkey" FOREIGN KEY ("roadId") REFERENCES "Road"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
