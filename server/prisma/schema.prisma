@@ -31,18 +31,18 @@ model Road {
 }
 
 model Segment {
-  id         Int      @id @default(autoincrement())
-  roadId     Int
-  startKm    Float
-  endKm      Float
-  surface    String?
-  lanesLeft  Int?
-  lanesRight Int?
-  status     String?
-  quality    String?
-  road       Road     @relation(fields: [roadId], references: [id])
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+    id         Int      @id @default(autoincrement())
+    roadId     Int
+    startKm    Float
+    endKm      Float
+    surface    String?
+    lanesLeft  Int?
+    lanesRight Int?
+    status     String?
+    quality    String?
+    road       Road     @relation(fields: [roadId], references: [id])
+    createdAt  DateTime @default(now())
+    updatedAt  DateTime @updatedAt
 
   @@index([roadId, startKm, endKm])
 }
@@ -147,11 +147,11 @@ model BridgeBand {
 // ---- Point events -----------------------------------------------------------
 
 model KmPost {
-  id     Int     @id @default(autoincrement())
-  roadId Int
-  km     Float
-  label  String?
-  road   Road    @relation(fields: [roadId], references: [id])
+  id       Int     @id @default(autoincrement())
+  roadId   Int     @map("section_id")
+  chainage Float
+  lrp      String
+  road     Road    @relation(fields: [roadId], references: [id])
 
-  @@index([roadId, km])
+  @@index([roadId, chainage])
 }
