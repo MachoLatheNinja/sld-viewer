@@ -61,22 +61,24 @@ app.get('/api/roads/:id/layers', async (req, res) => {
   const roadId = Number(req.params.id)
   const road = await prisma.road.findUnique({ where: { id: roadId } })
   if (!road) return res.status(404).json({ error: 'Road not found' })
+  const sections = await prisma.section.findMany({ where: { roadId }, orderBy: [{ startM: 'asc' }, { id: 'asc' }] })
+  const sectionIds = sections.map(s => s.id)
 
   const [
     surface, aadt, status, quality, lanes, rowWidth, municipality, bridges, kmPosts
   ] = await Promise.all([
-    prisma.surfaceBand.findMany({ where: { roadId }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
-    prisma.aadtBand.findMany({ where: { roadId }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
-    prisma.statusBand.findMany({ where: { roadId }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
-    prisma.qualityBand.findMany({ where: { roadId }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
-    prisma.lanesBand.findMany({ where: { roadId }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
-    prisma.rowWidthBand.findMany({ where: { roadId }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
-    prisma.municipalityBand.findMany({ where: { roadId }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
-    prisma.bridgeBand.findMany({ where: { roadId }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
-    prisma.kmPost.findMany({ where: { roadId }, orderBy: [{ chainageM:'asc' }, { id:'asc' }] }),
+    prisma.surfaceBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
+    prisma.aadtBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
+    prisma.statusBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
+    prisma.qualityBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
+    prisma.lanesBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
+    prisma.rowWidthBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
+    prisma.municipalityBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
+    prisma.bridgeBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
+    prisma.kmPost.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ chainageM:'asc' }, { id:'asc' }] }),
   ])
 
-  res.json({ road, surface, aadt, status, quality, lanes, rowWidth, municipality, bridges, kmPosts })
+  res.json({ road, sections, surface, aadt, status, quality, lanes, rowWidth, municipality, bridges, kmPosts })
 })
 
 /**
@@ -100,6 +102,9 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
   const road = await prisma.road.findUnique({ where: { id: roadId } })
   if (!road) return res.status(404).json({ error: 'Road not found' })
 
+  const sectionIds = (await prisma.section.findMany({ where: { roadId }, select: { id: true } })).map(s => s.id)
+  const sectionSet = new Set(sectionIds)
+
   const { leftId, rightId, m, edge } = req.body || {}
   if (!Number.isFinite(m)) return res.status(400).json({ error: 'm is required' })
 
@@ -112,7 +117,7 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
         if (edge === 'end') {
           if (!Number.isFinite(leftId)) throw new Error('leftId required for edge=end')
           const left = await T.findUnique({ where: { id: leftId } })
-          if (!left || left.roadId !== roadId) throw new Error('left row missing/mismatch')
+          if (!left || !sectionSet.has(left.sectionId)) throw new Error('left row missing/mismatch')
 
           // keep row valid (end > start) with minimal epsilon; otherwise use raw m
           let newM = m
@@ -121,7 +126,7 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
 
           // Optional: merge with left neighbor if identical value and contiguous
           const leftNeighbor = await T.findFirst({
-            where: { roadId, endM: { gte: left.startM - EPS, lte: left.startM + EPS } },
+            where: { sectionId: { in: sectionIds }, endM: { gte: left.startM - EPS, lte: left.startM + EPS } },
             orderBy: { endM: 'desc' }
           })
           const leftAfter = await T.findUnique({ where: { id: left.id } })
@@ -135,7 +140,7 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
         } else if (edge === 'start') {
           if (!Number.isFinite(rightId)) throw new Error('rightId required for edge=start')
           const right = await T.findUnique({ where: { id: rightId } })
-          if (!right || right.roadId !== roadId) throw new Error('right row missing/mismatch')
+          if (!right || !sectionSet.has(right.sectionId)) throw new Error('right row missing/mismatch')
 
           // keep row valid (start < end) with minimal epsilon; otherwise use raw m
           let newM = m
@@ -144,7 +149,7 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
 
           // Optional: merge with right neighbor if identical value and contiguous
           const rightNeighbor = await T.findFirst({
-            where: { roadId, startM: { gte: right.endM - EPS, lte: right.endM + EPS } },
+            where: { sectionId: { in: sectionIds }, startM: { gte: right.endM - EPS, lte: right.endM + EPS } },
             orderBy: { startM: 'asc' }
           })
           const rightAfter = await T.findUnique({ where: { id: right.id } })
@@ -166,7 +171,7 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
         let left = await T.findUnique({ where: { id: leftId } })
         let right = await T.findUnique({ where: { id: rightId } })
         if (!left || !right) throw new Error('Seam rows not found')
-        if (left.roadId !== roadId || right.roadId !== roadId) throw new Error('Road mismatch')
+        if (!sectionSet.has(left.sectionId) || !sectionSet.has(right.sectionId)) throw new Error('Road mismatch')
 
         if (left.startM > right.startM) { const tmp = left; left = right; right = tmp }
 
@@ -179,7 +184,7 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
 
         // merge neighbors if equal
         const leftNeighbor = await T.findFirst({
-          where: { roadId, endM: { gte: left.startM - EPS, lte: left.startM + EPS } },
+          where: { sectionId: { in: sectionIds }, endM: { gte: left.startM - EPS, lte: left.startM + EPS } },
           orderBy: { endM: 'desc' }
         })
         const leftAfter = await T.findUnique({ where: { id: left.id } })
@@ -191,7 +196,7 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
         }
 
         const rightNeighbor = await T.findFirst({
-          where: { roadId, startM: { gte: right.endM - EPS, lte: right.endM + EPS } },
+          where: { sectionId: { in: sectionIds }, startM: { gte: right.endM - EPS, lte: right.endM + EPS } },
           orderBy: { startM: 'asc' }
         })
         const rightAfter = await T.findUnique({ where: { id: right.id } })
@@ -205,7 +210,7 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
 
       // return fresh rows for this band
       const fresh = await T.findMany({
-        where: { roadId },
+        where: { sectionId: { in: sectionIds } },
         orderBy: [{ startM:'asc' }, { id:'asc' }]
       })
       return fresh
