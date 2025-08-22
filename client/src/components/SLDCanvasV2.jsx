@@ -89,7 +89,7 @@ export default function SLDCanvasV2({
 
     function drawKmPost(ctx, x, y, kmValue) {
       const topW = 8
-      const botW = 24
+      const botW = 20
       const h = KM_POST_H
       const rectW = botW
       const rectH = KM_POST_LABEL_H
@@ -117,10 +117,11 @@ export default function SLDCanvasV2({
       ctx.stroke()
 
       ctx.fillStyle = '#000'
-      ctx.font = 'bold 10px system-ui'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
+      ctx.font = 'bold 9px system-ui'
       ctx.fillText('KM', cx, y + h/2)
+      ctx.font = '8px system-ui'
       ctx.fillText(String(kmValue), cx, y + h + rectH/2)
       ctx.textAlign = 'left'
       ctx.textBaseline = 'alphabetic'
@@ -198,13 +199,13 @@ export default function SLDCanvasV2({
       const spanKm = toKm - fromKm
       const showHundred = spanKm <= 2
       const kmPostsArr = (layers?.kmPosts || []).slice().sort((a, b) => a.chainageKm - b.chainageKm)
+      const prev = kmPostsArr.filter(p => p.chainageKm < fromKm).slice(-1)[0]
+      const next = kmPostsArr.find(p => p.chainageKm > toKm)
+      const posts = kmPostsArr.filter(p => p.chainageKm >= fromKm && p.chainageKm <= toKm)
+      if (prev) posts.unshift(prev)
+      if (next) posts.push(next)
       ctx.textAlign = 'center'
-      if (kmPostsArr.length >= 2) {
-        const prev = kmPostsArr.filter(p => p.chainageKm < fromKm).slice(-1)[0]
-        const next = kmPostsArr.find(p => p.chainageKm > toKm)
-        const posts = kmPostsArr.filter(p => p.chainageKm >= fromKm && p.chainageKm <= toKm)
-        if (prev) posts.unshift(prev)
-        if (next) posts.push(next)
+      if (posts.length >= 2) {
         for (let i = 0; i < posts.length; i++) {
           const p = posts[i]
           const nextP = posts[i + 1]
