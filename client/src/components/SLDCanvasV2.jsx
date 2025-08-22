@@ -273,6 +273,29 @@ export default function SLDCanvasV2({
       }
     }
 
+    // bridge markers
+    for (const r of layers?.bridges || []) {
+      if (r.endKm < fromKm || r.startKm > toKm) continue
+      const startKm = Math.max(fromKm, r.startKm)
+      const endKm = Math.min(toKm, r.endKm)
+      const x1 = kmToX(startKm)
+      const x2 = kmToX(endKm)
+      const midKm = (startKm + endKm) / 2
+      const lanes = lanesAt(midKm)
+      const thickness = Math.max(18, lanes * (LANE_UNIT * 0.9))
+      const yTop = centerY - thickness / 2
+      ctx.strokeStyle = '#5d4037'
+      ctx.lineWidth = 2
+      const spacing = 30
+      for (let xi = x1 + spacing / 2; xi < x2; xi += spacing) {
+        ctx.beginPath()
+        ctx.moveTo(xi - 6, yTop)
+        ctx.lineTo(xi, yTop - 10)
+        ctx.lineTo(xi + 6, yTop)
+        ctx.stroke()
+      }
+    }
+
         // KM labels / axis
     ctx.strokeStyle = '#9e9e9e'
     ctx.fillStyle = '#616161'
