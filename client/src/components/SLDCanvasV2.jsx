@@ -56,7 +56,7 @@ function formatLRP(km, posts = []) {
   // When km lies between two known posts, keep the kilometer label from
   // the previous post and simply accumulate the extra meters. This avoids
   // rolling over to the next kilometer when the distance between posts
-  // exceeds 1000 m.
+  // exceeds 1000 m.
   if (prev.chainageKm <= km && km < next.chainageKm && prevLrpKm != null) {
     const baseKm = Math.floor(prevLrpKm)
     const baseOffsetM = (prevLrpKm - baseKm) * 1000
@@ -224,37 +224,28 @@ export default function SLDCanvasV2({
     ;(layers?.lanes || []).forEach(addRange)
     ;(layers?.surface || []).forEach(addRange)
     const kmPoints = Array.from(bps).sort((a, b) => a - b)
-
-    let prevKm = kmPoints[0]
     const centerY = layout.lanesY + LANE_ROW_H / 2
-    const startThickness = Math.max(18, lanesAt(prevKm) * (LANE_UNIT * 0.9))
-    let prevTop = centerY - startThickness / 2
-    let prevBot = centerY + startThickness / 2
-
     for (let i = 1; i < kmPoints.length; i++) {
-      const km = kmPoints[i]
-      const lanes = lanesAt(km)
+      const startKm = kmPoints[i - 1]
+      const endKm = kmPoints[i]
+      const midKm = (startKm + endKm) / 2
+      const lanes = lanesAt(midKm)
       const thickness = Math.max(18, lanes * (LANE_UNIT * 0.9))
       const yTop = centerY - thickness / 2
       const yBot = centerY + thickness / 2
-      const midKm = (prevKm + km) / 2
       const surf = surfaceAt(midKm)
       const color = SURFACE_COLORS[surf] || '#707070'
-      const x1 = kmToX(prevKm)
-      const x2 = kmToX(km)
+      const x1 = kmToX(startKm)
+      const x2 = kmToX(endKm)
 
       ctx.fillStyle = color
       ctx.beginPath()
-      ctx.moveTo(x1 - 0.5, Math.floor(prevTop) + 0.5)
+      ctx.moveTo(x1 - 0.5, Math.floor(yTop) + 0.5)
       ctx.lineTo(x2 + 0.5, Math.floor(yTop) + 0.5)
       ctx.lineTo(x2 + 0.5, Math.ceil(yBot) + 0.5)
-      ctx.lineTo(x1 - 0.5, Math.ceil(prevBot) + 0.5)
+      ctx.lineTo(x1 - 0.5, Math.ceil(yBot) + 0.5)
       ctx.closePath()
       ctx.fill()
-
-      prevKm = km
-      prevTop = yTop
-      prevBot = yBot
     }
 
     // dashed center line
