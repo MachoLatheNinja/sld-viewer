@@ -1,18 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { fetchRoads, fetchSegments, fetchLayers, moveBandSeam } from './api'
+import { fetchRoads, fetchLayers, moveBandSeam } from './api'
 import ControlBar from './components/ControlBar'
 import SLDCanvasV2 from './components/SLDCanvasV2'
-
-const DEFAULT_BANDS = [
-  { key: 'surface',      title: 'Surface',            height: 28 },
-  { key: 'aadt',         title: 'AADT',               height: 28 },
-  { key: 'status',       title: 'Status',             height: 28 },
-  { key: 'quality',      title: 'Condition',          height: 28 },
-  { key: 'rowWidth',     title: 'ROW Width (m)',      height: 28 },
-  { key: 'lanes',        title: 'Number of Lanes',    height: 28 },
-  { key: 'municipality', title: 'Municipality',       height: 28 },
-  { key: 'bridges',      title: 'Bridges',            height: 24 },
-]
+import { DEFAULT_BANDS } from './bands'
 
 export default function App() {
   const [roads, setRoads] = useState([])
@@ -20,7 +10,6 @@ export default function App() {
   const [road, setRoad] = useState(null)
   const [sectionList, setSectionList] = useState([])
   const [sectionId, setSectionId] = useState(null)
-  const [segments, setSegments] = useState([])
   const [allLayers, setAllLayers] = useState(null)
   const [layers, setLayers] = useState(null)
 
@@ -46,30 +35,23 @@ export default function App() {
   useEffect(() => {
     if (!road) return
     ;(async () => {
-      const seg = await fetchSegments(road.id)
-      const list = seg.segments || []
+      const ly = await fetchLayers(road.id)
+      setAllLayers(ly)
+      const list = ly.sections || []
       setSectionList(list)
       const first = list[0]
       setSectionId(first?.id || null)
-
-      const ly = await fetchLayers(road.id)
-      setAllLayers(ly)
     })()
   }, [road])
 
   useEffect(() => {
-    if (!sectionId) { setSegments([]); setLayers(null); return }
+    if (!sectionId) { setLayers(null); return }
     const section = sectionList.find(s => s.id === sectionId)
-    if (!section) { setSegments([]); setLayers(null); return }
+    if (!section) { setLayers(null); return }
     const start = section.startKm
     const end   = section.endKm
     const length = end - start
     setFromKm(0); setToKm(length)
-
-    const segs = sectionList
-      .filter(s => s.endKm > start && s.startKm < end)
-      .map(s => ({ ...s, startKm: s.startKm - start, endKm: s.endKm - start }))
-    setSegments(segs)
 
     const slice = (arr = []) => arr
       .filter(r => r.endKm > start && r.startKm < end)
@@ -149,7 +131,6 @@ export default function App() {
 
         <SLDCanvasV2
           road={currentRoad}
-          segments={segments}
           layers={layers}
           domain={domain}
           onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}

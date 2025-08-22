@@ -44,18 +44,6 @@ app.get('/api/roads', async (req, res) => {
   res.json(roads)
 })
 
-// legacy segments (optional)
-app.get('/api/roads/:id/segments', async (req, res) => {
-  const roadId = Number(req.params.id)
-  const road = await prisma.road.findUnique({ where: { id: roadId } })
-  if (!road) return res.status(404).json({ error: 'Road not found' })
-  const segments = await prisma.segment.findMany({
-    where: { roadId },
-    orderBy: [{ startM:'asc' }, { id:'asc' }],
-  })
-  res.json({ road, segments })
-})
-
 // all layers (per-band tables)
 app.get('/api/roads/:id/layers', async (req, res) => {
   const roadId = Number(req.params.id)
