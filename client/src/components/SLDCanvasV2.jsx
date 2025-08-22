@@ -52,6 +52,18 @@ function formatLRP(km, posts = []) {
   }
   const prevLrpKm = parseLrpKm(prev?.lrp)
   const nextLrpKm = parseLrpKm(next?.lrp)
+
+  // When km lies between two known posts, keep the kilometer label from
+  // the previous post and simply accumulate the extra meters. This avoids
+  // rolling over to the next kilometer when the distance between posts
+  // exceeds 1000 m.
+  if (prev.chainageKm <= km && km < next.chainageKm && prevLrpKm != null) {
+    const baseKm = Math.floor(prevLrpKm)
+    const baseOffsetM = (prevLrpKm - baseKm) * 1000
+    const offsetM = Math.round(baseOffsetM + (km - prev.chainageKm) * 1000)
+    return `K${String(baseKm).padStart(4,'0')} + ${String(offsetM).padStart(3,'0')}`
+  }
+
   if (prev.chainageKm <= km && prevLrpKm != null) {
     const lrpKm = prevLrpKm + (km - prev.chainageKm)
     return formatLrpKm(lrpKm)
