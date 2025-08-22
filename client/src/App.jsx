@@ -16,6 +16,8 @@ export default function App() {
   const [fromKm, setFromKm] = useState(0)
   const [toKm, setToKm] = useState(10)
 
+  const [showGuide, setShowGuide] = useState(false)
+
   const [bands] = useState(() => DEFAULT_BANDS)
   const domain = useMemo(() => ({ fromKm, toKm }), [fromKm, toKm])
   const currentSection = useMemo(() => sectionList.find(s => s.id === sectionId) || null, [sectionList, sectionId])
@@ -50,20 +52,20 @@ export default function App() {
     if (!section) { setLayers(null); return }
     const start = section.startKm
     const end   = section.endKm
-    const length = end - start
-    setFromKm(0); setToKm(length)
 
     const slice = (arr = []) => arr
-      .filter(r => r.endKm > start && r.startKm < end)
+      .filter(r => r.sectionId === section.id)
       .map(r => ({
         ...r,
         startKm: Math.max(r.startKm, start) - start,
         endKm: Math.min(r.endKm, end) - start,
       }))
+      .sort((a, b) => a.startKm - b.startKm)
 
     const slicePosts = (arr = []) => arr
-      .filter(p => p.chainageKm >= start && p.chainageKm <= end)
+      .filter(p => p.sectionId === section.id)
       .map(p => ({ ...p, chainageKm: p.chainageKm - start }))
+      .sort((a, b) => a.chainageKm - b.chainageKm)
 
     if (allLayers) {
       setLayers({
@@ -80,6 +82,15 @@ export default function App() {
     }
   }, [sectionId, sectionList, allLayers])
 
+  useEffect(() => {
+    if (!sectionId) return
+    const section = sectionList.find(s => s.id === sectionId)
+    if (!section) return
+    const length = section.endKm - section.startKm
+    setFromKm(0)
+    setToKm(length)
+  }, [sectionId, sectionList])
+
   const onSearch = async () => {
     const r = await fetchRoads(q)
     setRoads(r)
@@ -91,7 +102,7 @@ export default function App() {
     if (!road) return
     await moveBandSeam(road.id, bandKey, leftId, rightId, km, extra)
     const ly = await fetchLayers(road.id)
-    setLayers(ly)
+    setAllLayers(ly)
   }
 
   return (
@@ -110,13 +121,13 @@ export default function App() {
             <button onClick={onSearch}>Search</button>
             <select
               value={road?.id || ''}
-              onChange={(e)=>{ const next = roads.find(r=>r.id===Number(e.target.value)); setRoad(next||null) }}
+              onChange={(e)=>{ const next = roads.find(r=>r.id===e.target.value); setRoad(next||null) }}
             >
               {roads.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
             <select
               value={sectionId || ''}
-              onChange={(e)=>setSectionId(Number(e.target.value))}
+              onChange={(e)=>setSectionId(e.target.value)}
             >
               {sectionList.map(s => <option key={s.id} value={s.id}>{s.id}</option>)}
             </select>
@@ -127,6 +138,8 @@ export default function App() {
           road={currentRoad}
           domain={domain}
           onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
+          showGuide={showGuide}
+          onToggleGuide={()=>setShowGuide(g=>!g)}
         />
 
         <SLDCanvasV2
@@ -136,6 +149,7 @@ export default function App() {
           onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
           bands={bands}
           onMoveSeam={handleMoveSeam}
+          showGuide={showGuide}
         />
       </div>
     </div>

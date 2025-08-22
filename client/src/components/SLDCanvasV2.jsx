@@ -9,9 +9,10 @@ const LANE_ROW_H = 126
 const LANE_UNIT  = 24
 const MARK_THICK = 3
 
-const KM_POST_H = 20
+const KM_POST_H = 25
 const KM_POST_LABEL_H = 14
-const KM_POST_GAP = 4
+const KM_POST_GAP = -20
+const KM_POST_Y_OFFSET = -6
 
 const GAP = 8
 const TOP_PAD = 24
@@ -26,6 +27,54 @@ const EPS = 1e-6
 
 function formatAADT(n){ return (n==null)? '' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') }
 
+function parseLrpKm(lrp) {
+  const s = lrp || ''
+  let m = /^K\s*(\d+)\s*\+\s*(\d+)/i.exec(s)
+  if (m) return Number(m[1]) + Number(m[2]) / 1000
+  m = /^K?M?\s*(\d+)/i.exec(s)
+  return m ? Number(m[1]) : null
+}
+
+function formatLrpKm(kmVal) {
+  const k = Math.floor(kmVal)
+  const mPart = Math.round((kmVal - k) * 1000)
+  return `K${String(k).padStart(4,'0')} + ${String(mPart).padStart(3,'0')}`
+}
+
+function formatLRP(km, posts = []) {
+  if (!posts.length) return formatLrpKm(km)
+  const sorted = posts.slice().sort((a, b) => a.chainageKm - b.chainageKm)
+  let prev = sorted[0]
+  let next = sorted[sorted.length - 1]
+  for (const p of sorted) {
+    if (p.chainageKm <= km) prev = p
+    if (p.chainageKm >= km) { next = p; break }
+  }
+  const prevLrpKm = parseLrpKm(prev?.lrp)
+  const nextLrpKm = parseLrpKm(next?.lrp)
+
+  // When km lies between two known posts, keep the kilometer label from
+  // the previous post and simply accumulate the extra meters. This avoids
+  // rolling over to the next kilometer when the distance between posts
+  // exceeds 1000 m.
+  if (prev.chainageKm <= km && km < next.chainageKm && prevLrpKm != null) {
+    const baseKm = Math.floor(prevLrpKm)
+    const baseOffsetM = (prevLrpKm - baseKm) * 1000
+    const offsetM = Math.round(baseOffsetM + (km - prev.chainageKm) * 1000)
+    return `K${String(baseKm).padStart(4,'0')} + ${String(offsetM).padStart(3,'0')}`
+  }
+
+  if (prev.chainageKm <= km && prevLrpKm != null) {
+    const lrpKm = prevLrpKm + (km - prev.chainageKm)
+    return formatLrpKm(lrpKm)
+  }
+  if (next.chainageKm >= km && nextLrpKm != null) {
+    const lrpKm = nextLrpKm - (next.chainageKm - km)
+    return formatLrpKm(lrpKm)
+  }
+  return formatLrpKm(km)
+}
+
 export default function SLDCanvasV2({
   road,
   layers,
@@ -33,6 +82,7 @@ export default function SLDCanvasV2({
   onDomainChange,
   bands = DEFAULT_BANDS,
   onMoveSeam,        // (bandKey, leftId, rightId, km, extra={})
+  showGuide,
 }) {
   const canvasRef = useRef(null)
   const [panX, setPanX] = useState(0)
@@ -41,17 +91,20 @@ export default function SLDCanvasV2({
   const rafRef      = useRef(0)
   const helpersRef  = useRef({ kmToX:(km)=>km, xToKm:(x)=>x })
   const dragRef     = useRef(null)
+  const [hoverKm, setHoverKm] = useState(null)
 
   const lengthKm = Number(road?.lengthKm || 0)
   const fromKm = Math.max(0, domain?.fromKm ?? 0)
   const toKm   = Math.min(lengthKm, domain?.toKm ?? lengthKm)
+
+  useEffect(() => { if (!showGuide) setHoverKm(null) }, [showGuide])
 
   useEffect(()=>{
     const el = canvasRef.current; if(!el) return
     const w = el.clientWidth || 1200
     const desiredZoom = (w - LEFT_PAD - RIGHT_PAD) / Math.max(0.001, (toKm - fromKm))
     setZoom(desiredZoom)
-    setPanX(LEFT_PAD - fromKm * desiredZoom)
+    setPanX(-fromKm * desiredZoom)
   }, [fromKm, toKm, lengthKm])
 
   const layout = useMemo(()=>{
@@ -59,18 +112,18 @@ export default function SLDCanvasV2({
     const lanesY = y; y += LANE_ROW_H
     // ruler sits just below the road visualization
     const axisY = y + 2
-    y = axisY + AXIS_H + GAP
+    const kmPostY = axisY + AXIS_H + KM_POST_GAP + KM_POST_Y_OFFSET
+    y = kmPostY + KM_POST_H + KM_POST_LABEL_H + GAP
     const bandBoxes = bands.map((b) => {
       const h = Math.max(MIN_BAND_H, Math.min(MAX_BAND_H, Number(b.height)||28))
       const box = { y, h, key: b.key, title: b.title }
       y += h
       return box
     })
-      const kmPostY = axisY - (KM_POST_H + KM_POST_LABEL_H + KM_POST_GAP)
-      const totalH = y + 10
-      return { lanesY, bandBoxes, axisY, kmPostY, totalH }
+    const totalH = y + 10
+    return { lanesY, bandBoxes, axisY, kmPostY, totalH }
 
-    }, [bands])
+  }, [bands])
 
   function drawDashes(ctx, x1, x2, y, dashLen = 12, gapLen = 10, thickness = MARK_THICK) {
     const usableStart = x1 + 6
@@ -88,25 +141,40 @@ export default function SLDCanvasV2({
 
     function drawKmPost(ctx, x, y, kmValue) {
       const topW = 8
-      const botW = 24
+      const botW = 20
       const h = KM_POST_H
       const rectW = botW
       const rectH = KM_POST_LABEL_H
-      ctx.fillStyle = '#FFC107'
+      const hatchLen = 4
+      const cx = Math.round(x) + 0.5
+      const color = '#FFC107'
+
+      ctx.fillStyle = color
       ctx.beginPath()
-      ctx.moveTo(x - topW/2, y)
-      ctx.lineTo(x + topW/2, y)
-      ctx.lineTo(x + botW/2, y + h)
-      ctx.lineTo(x - botW/2, y + h)
+      ctx.moveTo(cx - topW/2, y)
+      ctx.lineTo(cx + topW/2, y)
+      ctx.lineTo(cx + botW/2, y + h)
+      ctx.lineTo(cx - botW/2, y + h)
       ctx.closePath()
       ctx.fill()
-      ctx.fillRect(x - rectW/2, y + h, rectW, rectH)
+      ctx.fillRect(cx - rectW/2, y + h, rectW, rectH)
+
+      ctx.strokeStyle = color
+      ctx.lineWidth = 3
+      ctx.beginPath()
+      ctx.moveTo(cx, y - hatchLen)
+      ctx.lineTo(cx, y)
+      ctx.moveTo(cx, y + h + rectH)
+      ctx.lineTo(cx, y + h + rectH + hatchLen)
+      ctx.stroke()
+
       ctx.fillStyle = '#000'
-      ctx.font = 'bold 10px system-ui'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText('KM', x, y + h/2)
-      ctx.fillText(String(kmValue), x, y + h + rectH/2)
+      ctx.font = 'bold 8px system-ui'
+      ctx.fillText('KM', cx, y + h/2)
+      ctx.font = 'bold 10px system-ui'
+      ctx.fillText(String(kmValue), cx, y + h + rectH/2)
       ctx.textAlign = 'left'
       ctx.textBaseline = 'alphabetic'
     }
@@ -143,53 +211,127 @@ export default function SLDCanvasV2({
 
     // ROAD strip (no seam lines)
     const xStart = kmToX(fromKm), xEnd = kmToX(toKm)
-    const sampleCount = Math.max(1, Math.floor((toKm - fromKm) * 30))
-    let prevYTop=null, prevYBot=null, prevX=null
 
-    for (let i=0;i<=sampleCount;i++){
-      const t = i / sampleCount
-      const km = fromKm + t * (toKm - fromKm)
-      const x = kmToX(km)
-      const lanes = lanesAt(km)
+    // Build breakpoints where lane count or surface changes to reduce
+    // the amount of drawing work. This keeps panning responsive even on
+    // long stretches of road.
+    const bps = new Set([fromKm, toKm])
+    const addRange = (r = {}) => {
+      const s = Math.max(fromKm, r.startKm ?? fromKm)
+      const e = Math.min(toKm,   r.endKm   ?? toKm)
+      if (e > s) { bps.add(s); bps.add(e) }
+    }
+    ;(layers?.lanes || []).forEach(addRange)
+    ;(layers?.surface || []).forEach(addRange)
+    const kmPoints = Array.from(bps).sort((a, b) => a - b)
+    const centerY = layout.lanesY + LANE_ROW_H / 2
+    for (let i = 1; i < kmPoints.length; i++) {
+      const startKm = kmPoints[i - 1]
+      const endKm = kmPoints[i]
+      const midKm = (startKm + endKm) / 2
+      const lanes = lanesAt(midKm)
       const thickness = Math.max(18, lanes * (LANE_UNIT * 0.9))
-      const yCenter = layout.lanesY + LANE_ROW_H/2
-      const yTop = yCenter - thickness/2
-      const yBot = yCenter + thickness/2
-      const surf = surfaceAt(km)
+      const yTop = centerY - thickness / 2
+      const yBot = centerY + thickness / 2
+      const surf = surfaceAt(midKm)
       const color = SURFACE_COLORS[surf] || '#707070'
+      const x1 = kmToX(startKm)
+      const x2 = kmToX(endKm)
 
-      if (prevX != null) {
-        ctx.fillStyle = color
-        ctx.beginPath()
-        ctx.moveTo(prevX-0.5, Math.floor(prevYTop)+0.5)
-        ctx.lineTo(x+0.5,     Math.floor(yTop)+0.5)
-        ctx.lineTo(x+0.5,     Math.ceil(yBot)+0.5)
-        ctx.lineTo(prevX-0.5, Math.ceil(prevYBot)+0.5)
-        ctx.closePath()
-        ctx.fill()
-      }
-      prevX=x; prevYTop=yTop; prevYBot=yBot
+      ctx.fillStyle = color
+      ctx.beginPath()
+      ctx.moveTo(x1 - 0.5, Math.floor(yTop) + 0.5)
+      ctx.lineTo(x2 + 0.5, Math.floor(yTop) + 0.5)
+      ctx.lineTo(x2 + 0.5, Math.ceil(yBot) + 0.5)
+      ctx.lineTo(x1 - 0.5, Math.ceil(yBot) + 0.5)
+      ctx.closePath()
+      ctx.fill()
     }
 
-    // dashed center line
+    // center line
     ctx.fillStyle = '#ffd54f'
-    const yCenter = layout.lanesY + LANE_ROW_H/2
-    drawDashes(ctx, xStart, xEnd, yCenter, 12, 10, MARK_THICK)
+    ctx.fillRect(xStart, centerY - MARK_THICK / 2, xEnd - xStart, MARK_THICK)
+
+    // dashed lane divisions for multi-lane roads
+    for (let i = 1; i < kmPoints.length; i++) {
+      const startKm = kmPoints[i - 1]
+      const endKm = kmPoints[i]
+      const midKm = (startKm + endKm) / 2
+      const lanes = lanesAt(midKm)
+      if (lanes > 2) {
+        const thickness = Math.max(18, lanes * (LANE_UNIT * 0.9))
+        const yTop = centerY - thickness / 2
+        const laneW = thickness / lanes
+        const x1 = kmToX(startKm)
+        const x2 = kmToX(endKm)
+        for (let lane = 1; lane < lanes; lane++) {
+          const y = yTop + laneW * lane
+          if (Math.abs(y - centerY) < 0.1) continue
+          ctx.fillStyle = '#ffd54f'
+          drawDashes(ctx, x1, x2, y, 12, 10, MARK_THICK)
+        }
+      }
+    }
+
+    // bridge markers
+    for (const r of layers?.bridges || []) {
+      if (r.endKm < fromKm || r.startKm > toKm) continue
+      const startKm = Math.max(fromKm, r.startKm)
+      const endKm = Math.min(toKm, r.endKm)
+      const x1 = kmToX(startKm)
+      const x2 = kmToX(endKm)
+      const midKm = (startKm + endKm) / 2
+      const lanes = lanesAt(midKm)
+      const thickness = Math.max(18, lanes * (LANE_UNIT * 0.9))
+      const yTop = centerY - thickness / 2
+      ctx.strokeStyle = '#5d4037'
+      ctx.lineWidth = 2
+
+      // draw bridge symbol: two parallel lines with angled ends
+      const topY = yTop - 8
+      const bottomY = yTop + thickness + 8
+      const flare = 10
+
+      ctx.beginPath()
+      // horizontal deck lines
+      ctx.moveTo(x1, topY)
+      ctx.lineTo(x2, topY)
+      ctx.moveTo(x1, bottomY)
+      ctx.lineTo(x2, bottomY)
+      // angled extensions
+      ctx.moveTo(x1, topY)
+      ctx.lineTo(x1 - flare, topY - flare)
+      ctx.moveTo(x1, bottomY)
+      ctx.lineTo(x1 - flare, bottomY + flare)
+      ctx.moveTo(x2, topY)
+      ctx.lineTo(x2 + flare, topY - flare)
+      ctx.moveTo(x2, bottomY)
+      ctx.lineTo(x2 + flare, bottomY + flare)
+      ctx.stroke()
+    }
 
         // KM labels / axis
     ctx.strokeStyle = '#9e9e9e'
     ctx.fillStyle = '#616161'
     ctx.lineWidth = 1
-      const spanKm = toKm - fromKm
-      const showHundred = spanKm <= 2
+    const spanKm = toKm - fromKm
+    const spanM = spanKm * 1000
+    if (spanM <= 10000) {
+      let stepM = 1000
+      if (spanM < 100) stepM = 10
+      else if (spanM < 500) stepM = 25
+      else if (spanM < 1000) stepM = 50
+      else if (spanM < 3000) stepM = 100
+      const stepKm = stepM / 1000
+      const showSub = stepKm < 1
       const kmPostsArr = (layers?.kmPosts || []).slice().sort((a, b) => a.chainageKm - b.chainageKm)
+      const prev = kmPostsArr.filter(p => p.chainageKm < fromKm).slice(-1)[0]
+      const next = kmPostsArr.find(p => p.chainageKm > toKm)
+      const posts = kmPostsArr.filter(p => p.chainageKm >= fromKm && p.chainageKm <= toKm)
+      if (prev) posts.unshift(prev)
+      if (next) posts.push(next)
       ctx.textAlign = 'center'
-      if (kmPostsArr.length) {
-        const prev = kmPostsArr.filter(p => p.chainageKm < fromKm).slice(-1)[0]
-        const next = kmPostsArr.find(p => p.chainageKm > toKm)
-        const posts = kmPostsArr.filter(p => p.chainageKm >= fromKm && p.chainageKm <= toKm)
-        if (prev) posts.unshift(prev)
-        if (next) posts.push(next)
+      if (posts.length >= 2) {
         for (let i = 0; i < posts.length; i++) {
           const p = posts[i]
           const nextP = posts[i + 1]
@@ -199,16 +341,13 @@ export default function SLDCanvasV2({
             ctx.moveTo(x, layout.axisY)
             ctx.lineTo(x, layout.axisY + 6)
             ctx.stroke()
-            const label = p.lrp?.replace(/^\s*KM\s*/i, '') ?? Math.round(p.chainageKm)
-            ctx.font = '10px system-ui'
-            ctx.fillText(label, x, layout.axisY + 18)
           }
-          if (showHundred && nextP) {
+          if (showSub && nextP) {
             const startKm = Math.max(fromKm, p.chainageKm)
             const endKm = Math.min(toKm, nextP.chainageKm)
-            let m = Math.ceil((startKm - p.chainageKm) / 0.1) * 0.1 + p.chainageKm
-            for (; m < endKm - 1e-9; m += 0.1) {
-              if (Math.abs(m - p.chainageKm) < 1e-9 || m > nextP.chainageKm - 1e-9) break
+            let m = Math.ceil((startKm - p.chainageKm) / stepKm) * stepKm + p.chainageKm
+            if (m <= p.chainageKm + 1e-9) m += stepKm
+            for (; m < endKm - 1e-9 && m < nextP.chainageKm - 1e-9; m += stepKm) {
               const x = kmToX(m)
               ctx.beginPath()
               ctx.moveTo(x, layout.axisY)
@@ -221,19 +360,25 @@ export default function SLDCanvasV2({
           }
         }
       } else {
-        const step = showHundred ? 0.1 : 1
+        const step = showSub ? stepKm : 1
         const startTick = Math.ceil(fromKm / step) * step
         for (let k = startTick; k <= toKm + 1e-9; k += step) {
           const x = kmToX(k)
+          const isWholeKm = Math.abs(k - Math.round(k)) < 1e-9
           ctx.beginPath()
           ctx.moveTo(x, layout.axisY)
-          ctx.lineTo(x, layout.axisY + 6)
+          ctx.lineTo(x, layout.axisY + (showSub && !isWholeKm ? 4 : 6))
           ctx.stroke()
           let label
-          if (showHundred) {
-            const isWholeKm = Math.abs(k - Math.round(k)) < 1e-9
-            label = isWholeKm ? String(Math.round(k)) : String(Math.round(k * 1000))
+          if (showSub) {
+            if (isWholeKm) {
+              if (kmPostsArr.some(p => Math.abs(p.chainageKm - k) < 1e-9)) continue
+              label = String(Math.round(k))
+            } else {
+              label = String(Math.round(k * 1000) % 1000)
+            }
           } else {
+            if (kmPostsArr.some(p => Math.abs(p.chainageKm - k) < 1e-9)) continue
             label = String(Math.round(k))
           }
           ctx.font = '10px system-ui'
@@ -241,7 +386,8 @@ export default function SLDCanvasV2({
         }
       }
       ctx.textAlign = 'left'
-      ctx.fillText(showHundred ? 'm' : 'km', w-16, layout.axisY+18)
+      ctx.fillText(showSub ? 'm' : 'km', w-16, layout.axisY+18)
+    }
 
     // ----- BANDS -----
     const drawRanges = (box, ranges, colorFn, labelFn) => {
@@ -256,19 +402,32 @@ export default function SLDCanvasV2({
 
       for (const r of ranges) {
         if (r.endKm < fromKm || r.startKm > toKm) continue
-        const x1 = kmToX(Math.max(r.startKm, fromKm))
-        const x2 = kmToX(Math.min(r.endKm, toKm))
-        const ww = Math.max(1, x2 - x1) + 1 // overlap to hide hairlines
+        const x1 = Math.round(kmToX(Math.max(r.startKm, fromKm)))
+        const x2 = Math.round(kmToX(Math.min(r.endKm, toKm)))
+        const ww = Math.max(1, x2 - x1)
         ctx.fillStyle = colorFn(r)
-        ctx.fillRect(Math.floor(x1)-0.5, trackY, ww, trackH)
+        ctx.fillRect(x1, trackY, ww, trackH)
 
         const lbl = labelFn ? labelFn(r) : ''
         if (lbl) {
-          ctx.fillStyle = '#fff'
           ctx.font = '11px system-ui'
-          ctx.textAlign = 'center'
-          ctx.fillText(lbl, x1 + ww/2 - 0.5, trackY + (trackH/2) + 3)
-          ctx.textAlign = 'left'
+          const textW = ctx.measureText(lbl).width
+          if (textW + 4 <= ww) {
+            ctx.fillStyle = '#fff'
+            ctx.textAlign = 'center'
+            ctx.fillText(lbl, x1 + ww / 2, trackY + (trackH / 2) + 3)
+            ctx.textAlign = 'left'
+          }
+        }
+      }
+
+      if (box.key !== 'bridges') {
+        ctx.fillStyle = '#fff'
+        for (let i = 0; i < ranges.length - 1; i++) {
+          const seamKm = ranges[i].endKm
+          if (seamKm <= fromKm || seamKm >= toKm) continue
+          const x = Math.round(kmToX(seamKm))
+          ctx.fillRect(x, trackY, 1, trackH)
         }
       }
 
@@ -308,8 +467,19 @@ export default function SLDCanvasV2({
       }
     }
     // kilometer posts from kmPost table (if any)
-    const kmPosts = (layers?.kmPosts || [])
+    let kmPosts = (layers?.kmPosts || [])
       .filter(p => p.chainageKm >= fromKm && p.chainageKm <= toKm)
+
+    // When zoomed out beyond 10 km, trim posts to keep labels readable.
+    if (spanM > 10000) {
+      kmPosts = kmPosts.filter(p => {
+        const kmVal = parseLrpKm(p.lrp)
+        if (kmVal == null) return false
+        const rounded = Math.round(kmVal)
+        return spanM > 50000 ? rounded % 10 === 0 : rounded % 5 === 0
+      })
+    }
+
     for (const p of kmPosts) {
       const x = kmToX(p.chainageKm)
       const label = p.lrp?.replace(/^\s*KM\s*/i, '') ?? Math.round(p.chainageKm)
@@ -336,6 +506,37 @@ export default function SLDCanvasV2({
       case 'bridges': return layers.bridges || []
       default: return []
     }
+  }
+
+  const bandValue = (key, r) => {
+    switch (key) {
+      case 'surface': return r.surface
+      case 'aadt': return formatAADT(r.aadt)
+      case 'status': return r.status
+      case 'quality': return r.quality
+      case 'lanes': return `${r.lanes} lanes`
+      case 'rowWidth': return `${r.rowWidthM} m`
+      case 'municipality': return r.name
+      case 'bridges': return r.name
+      default: return ''
+    }
+  }
+
+  const valuesAt = (key, km) => {
+    const arr = bandArrayByKey(key)
+    for (let i = 0; i < arr.length; i++) {
+      const r = arr[i]
+      if (km >= r.startKm - EPS && km <= r.endKm + EPS) {
+        if (Math.abs(km - r.endKm) < EPS && arr[i + 1]) {
+          return { left: bandValue(key, r), right: bandValue(key, arr[i + 1]) }
+        }
+        if (Math.abs(km - r.startKm) < EPS && arr[i - 1]) {
+          return { left: bandValue(key, arr[i - 1]), right: bandValue(key, r) }
+        }
+        return { center: bandValue(key, r) }
+      }
+    }
+    return {}
   }
 
   // hit seam/edge: for bridges, allow start & end edge handles; for others, only adjacent seams
@@ -384,9 +585,9 @@ export default function SLDCanvasV2({
     const { xToKm } = helpersRef.current
     const { offsetX } = e.nativeEvent
     const mouseKm = xToKm(offsetX)
-    const zoomIn = e.deltaY < 0
-    const factor = zoomIn ? 0.9 : 1.1
     const currSpan = Math.max(0.001, toKm - fromKm)
+    // Use the wheel delta directly for smoother zooming instead of fixed steps.
+    const factor = Math.exp(e.deltaY * 0.001)
     let newSpan = Math.min(lengthKm, Math.max(0.05, currSpan * factor))
     const leftFrac = (mouseKm - fromKm) / currSpan
     let newFrom = mouseKm - leftFrac * newSpan
@@ -412,6 +613,18 @@ export default function SLDCanvasV2({
     const y = e.clientY - rect.top
     const seam = hitSeamAt(x, y)
     e.currentTarget.style.cursor = seam ? 'ew-resize' : (dragRef.current?.type==='pan' ? 'grabbing' : 'grab')
+    const { xToKm } = helpersRef.current
+    if (showGuide) {
+      let km = xToKm(x)
+      if (seam) {
+        if (seam.bandKey === 'bridges') {
+          km = seam.edge === 'start' ? seam.right.startKm : seam.left.endKm
+        } else {
+          km = seam.left.endKm
+        }
+      }
+      setHoverKm(km)
+    } else setHoverKm(null)
 
     const drag = dragRef.current
     if (!drag) return
@@ -453,21 +666,114 @@ export default function SLDCanvasV2({
     await onMoveSeam?.(drag.bandKey, drag.left.id, drag.right.id, dropKm)
   }
 
+  const onMouseLeave = () => {
+    setHoverKm(null)
+  }
+
+  const hoverX = hoverKm == null ? null : helpersRef.current.kmToX(hoverKm)
+
   return (
     <div style={{ border:'1px solid #e0e0e0', borderRadius:8, background:'#fff', padding:8 }}>
       <div style={{ fontWeight:700, marginBottom:6 }}>
         {road?.name ?? 'Road'} — Editable Independent Bands
       </div>
-      <canvas
-        ref={canvasRef}
-        style={{ width:'100%', height: layout.totalH, display:'block', cursor:'grab' }}
-        width={1200}
-        height={layout.totalH}
-        onWheel={onWheel}
-        onMouseDown={onMouseDown}
-        onMouseMove={onMouseMove}
-        onMouseUp={onMouseUp}
-      />
+      <div style={{ position:'relative', width:'100%', height: layout.totalH }}>
+        <canvas
+          ref={canvasRef}
+          style={{ width:'100%', height: layout.totalH, display:'block', cursor:'grab' }}
+          width={1200}
+          height={layout.totalH}
+          onWheel={onWheel}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUp}
+          onMouseLeave={onMouseLeave}
+        />
+        {showGuide && hoverKm != null && (
+          <>
+            <div style={{ position:'absolute', top:0, bottom:0, left:hoverX, width:1, background:'#FFC107', pointerEvents:'none' }} />
+            {layout.bandBoxes.map((b) => {
+              const v = valuesAt(b.key, hoverKm)
+              if (v.center) {
+                return (
+                  <div
+                    key={b.key}
+                    style={{
+                      position:'absolute',
+                      left:hoverX,
+                      top: b.y + b.h/2 - 4,
+                      transform:'translate(-50%, -50%)',
+                      background:'rgba(0,0,0,0.7)',
+                      color:'#fff',
+                      borderRadius:4,
+                      padding:'2px 4px',
+                      fontSize:11,
+                      pointerEvents:'none',
+                      whiteSpace:'nowrap'
+                    }}
+                  >{v.center}</div>
+                )
+              }
+              if (v.left || v.right) {
+                return (
+                  <React.Fragment key={b.key}>
+                    {v.left && (
+                      <div
+                        style={{
+                          position:'absolute',
+                          left:hoverX,
+                          top: b.y + b.h/2 - 4,
+                          transform:'translate(-100%, -50%) translateX(-4px)',
+                          background:'rgba(0,0,0,0.7)',
+                          color:'#fff',
+                          borderRadius:4,
+                          padding:'2px 4px',
+                          fontSize:11,
+                          pointerEvents:'none',
+                          whiteSpace:'nowrap'
+                        }}
+                      >{v.left}</div>
+                    )}
+                    {v.right && (
+                      <div
+                        style={{
+                          position:'absolute',
+                          left:hoverX,
+                          top: b.y + b.h/2 - 4,
+                          transform:'translate(0, -50%) translateX(4px)',
+                          background:'rgba(0,0,0,0.7)',
+                          color:'#fff',
+                          borderRadius:4,
+                          padding:'2px 4px',
+                          fontSize:11,
+                          pointerEvents:'none',
+                          whiteSpace:'nowrap'
+                        }}
+                      >{v.right}</div>
+                    )}
+                  </React.Fragment>
+                )
+              }
+              return null
+            })}
+            <div
+              style={{
+                position:'absolute',
+                left:hoverX,
+                top: layout.axisY - 8,
+                transform:'translate(-50%, -100%)',
+                background:'rgba(0,0,0,0.7)',
+                color:'#fff',
+                borderRadius:4,
+                padding:'2px 4px',
+                fontSize:11,
+                pointerEvents:'none',
+                whiteSpace:'nowrap'
+              }}
+            >{formatLRP(hoverKm, layers?.kmPosts)}</div>
+          </>
+        )}
+      </div>
       <div style={{ fontSize:12, color:'#616161', marginTop:6 }}>
         Drag seams to edit. Bridges allow gaps and support dragging either edge. Pan by dragging; scroll to zoom.
       </div>

@@ -46,7 +46,7 @@ app.get('/api/roads', async (req, res) => {
 
 // all layers (per-band tables)
 app.get('/api/roads/:id/layers', async (req, res) => {
-  const roadId = Number(req.params.id)
+  const roadId = req.params.id
   const road = await prisma.road.findUnique({ where: { id: roadId } })
   if (!road) return res.status(404).json({ error: 'Road not found' })
   const sections = await prisma.section.findMany({ where: { roadId }, orderBy: [{ startM: 'asc' }, { id: 'asc' }] })
@@ -82,7 +82,7 @@ app.get('/api/roads/:id/layers', async (req, res) => {
  *   bridges:     { leftId?:number, rightId?:number, m:number, edge:'start'|'end' }
  */
 app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
-  const roadId = Number(req.params.id)
+  const roadId = req.params.id
   const band = String(req.params.band)
   const meta = BAND_META[band]
   if (!meta) return res.status(400).json({ error: 'Unknown band' })
