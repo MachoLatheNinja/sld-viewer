@@ -92,21 +92,34 @@ export default function SLDCanvasV2({
       const h = KM_POST_H
       const rectW = botW
       const rectH = KM_POST_LABEL_H
+      const hatchLen = 4
+      const cx = Math.round(x) + 0.5
+
       ctx.fillStyle = '#FFC107'
       ctx.beginPath()
-      ctx.moveTo(x - topW/2, y)
-      ctx.lineTo(x + topW/2, y)
-      ctx.lineTo(x + botW/2, y + h)
-      ctx.lineTo(x - botW/2, y + h)
+      ctx.moveTo(cx - topW/2, y)
+      ctx.lineTo(cx + topW/2, y)
+      ctx.lineTo(cx + botW/2, y + h)
+      ctx.lineTo(cx - botW/2, y + h)
       ctx.closePath()
       ctx.fill()
-      ctx.fillRect(x - rectW/2, y + h, rectW, rectH)
+      ctx.fillRect(cx - rectW/2, y + h, rectW, rectH)
+
+      ctx.strokeStyle = '#000'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.moveTo(cx, y - hatchLen)
+      ctx.lineTo(cx, y)
+      ctx.moveTo(cx, y + h + rectH)
+      ctx.lineTo(cx, y + h + rectH + hatchLen)
+      ctx.stroke()
+
       ctx.fillStyle = '#000'
       ctx.font = 'bold 10px system-ui'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText('KM', x, y + h/2)
-      ctx.fillText(String(kmValue), x, y + h + rectH/2)
+      ctx.fillText('KM', cx, y + h/2)
+      ctx.fillText(String(kmValue), cx, y + h + rectH/2)
       ctx.textAlign = 'left'
       ctx.textBaseline = 'alphabetic'
     }
