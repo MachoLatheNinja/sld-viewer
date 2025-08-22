@@ -52,8 +52,6 @@ export default function App() {
     if (!section) { setLayers(null); return }
     const start = section.startKm
     const end   = section.endKm
-    const length = end - start
-    setFromKm(0); setToKm(length)
 
     const slice = (arr = []) => arr
       .filter(r => r.sectionId === section.id)
@@ -83,6 +81,15 @@ export default function App() {
       })
     }
   }, [sectionId, sectionList, allLayers])
+
+  useEffect(() => {
+    if (!sectionId) return
+    const section = sectionList.find(s => s.id === sectionId)
+    if (!section) return
+    const length = section.endKm - section.startKm
+    setFromKm(0)
+    setToKm(length)
+  }, [sectionId, sectionList])
 
   const onSearch = async () => {
     const r = await fetchRoads(q)
