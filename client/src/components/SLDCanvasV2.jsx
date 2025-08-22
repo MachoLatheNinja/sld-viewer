@@ -343,18 +343,18 @@ export default function SLDCanvasV2({
 
       for (const r of ranges) {
         if (r.endKm < fromKm || r.startKm > toKm) continue
-        const x1 = kmToX(Math.max(r.startKm, fromKm))
-        const x2 = kmToX(Math.min(r.endKm, toKm))
-        const ww = Math.max(1, x2 - x1) + 1 // overlap to hide hairlines
+        const x1 = Math.round(kmToX(Math.max(r.startKm, fromKm)))
+        const x2 = Math.round(kmToX(Math.min(r.endKm, toKm)))
+        const ww = Math.max(1, x2 - x1)
         ctx.fillStyle = colorFn(r)
-        ctx.fillRect(Math.floor(x1)-0.5, trackY, ww, trackH)
+        ctx.fillRect(x1, trackY, ww, trackH)
 
         const lbl = labelFn ? labelFn(r) : ''
         if (lbl) {
           ctx.fillStyle = '#fff'
           ctx.font = '11px system-ui'
           ctx.textAlign = 'center'
-          ctx.fillText(lbl, x1 + ww/2 - 0.5, trackY + (trackH/2) + 3)
+          ctx.fillText(lbl, x1 + ww/2, trackY + (trackH/2) + 3)
           ctx.textAlign = 'left'
         }
       }
@@ -364,8 +364,8 @@ export default function SLDCanvasV2({
         for (let i = 0; i < ranges.length - 1; i++) {
           const seamKm = ranges[i].endKm
           if (seamKm <= fromKm || seamKm >= toKm) continue
-          const x = kmToX(seamKm)
-          ctx.fillRect(Math.round(x) - 0.5, trackY, 1, trackH)
+          const x = Math.round(kmToX(seamKm))
+          ctx.fillRect(x, trackY, 1, trackH)
         }
       }
 
