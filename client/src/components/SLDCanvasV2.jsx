@@ -27,22 +27,39 @@ const EPS = 1e-6
 
 function formatAADT(n){ return (n==null)? '' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') }
 
-function formatLRP(km, posts = []) {
-  const prev = posts.filter(p => p.chainageKm <= km).slice(-1)[0]
-  if (prev?.lrp) {
-    const m = /^K(\d+)\+(\d+)$/.exec(prev.lrp)
-    if (m) {
-      const baseKm = Number(m[1])
-      const baseM = Number(m[2])
-      let offset = Math.round((km - prev.chainageKm) * 1000 + baseM)
-      const k = baseKm + Math.floor(offset / 1000)
-      const mPart = offset % 1000
-      return `K${String(k).padStart(4,'0')} + ${String(mPart).padStart(3,'0')}`
-    }
-  }
-  const k = Math.floor(km)
-  const mPart = Math.round((km - k) * 1000)
+function parseLrpKm(lrp) {
+  const m = /^K\s*(\d+)\s*\+\s*(\d+)/i.exec(lrp || '')
+  return m ? Number(m[1]) + Number(m[2]) / 1000 : null
+}
+
+function formatLrpKm(kmVal) {
+  const k = Math.floor(kmVal)
+  const mPart = Math.round((kmVal - k) * 1000)
   return `K${String(k).padStart(4,'0')} + ${String(mPart).padStart(3,'0')}`
+}
+
+function formatLRP(km, posts = []) {
+  if (!posts.length) return formatLrpKm(km)
+  const sorted = posts.slice().sort((a, b) => a.chainageKm - b.chainageKm)
+  let prev = sorted[0]
+  let next = sorted[sorted.length - 1]
+  for (const p of sorted) {
+    if (p.chainageKm <= km) prev = p
+    if (p.chainageKm >= km) { next = p; break }
+  }
+  const prevLrpKm = parseLrpKm(prev?.lrp)
+  const nextLrpKm = parseLrpKm(next?.lrp)
+  if (prevLrpKm != null && nextLrpKm != null && prev !== next) {
+    const span = Math.max(1e-9, next.chainageKm - prev.chainageKm)
+    const t = (km - prev.chainageKm) / span
+    const interp = prevLrpKm + t * (nextLrpKm - prevLrpKm)
+    return formatLrpKm(interp)
+  }
+  if (prevLrpKm != null) {
+    const interp = prevLrpKm + (km - prev.chainageKm)
+    return formatLrpKm(interp)
+  }
+  return formatLrpKm(km)
 }
 
 export default function SLDCanvasV2({
@@ -320,6 +337,16 @@ export default function SLDCanvasV2({
         }
       }
 
+      if (box.key !== 'bridges') {
+        ctx.fillStyle = '#fff'
+        for (let i = 0; i < ranges.length - 1; i++) {
+          const seamKm = ranges[i].endKm
+          if (seamKm <= fromKm || seamKm >= toKm) continue
+          const x = kmToX(seamKm)
+          ctx.fillRect(Math.round(x) - 0.5, trackY, 1, trackH)
+        }
+      }
+
       ctx.fillStyle = '#424242'
       ctx.font = '12px system-ui'
       ctx.fillText(box.title, 4, titleY)
@@ -481,8 +508,17 @@ export default function SLDCanvasV2({
     const seam = hitSeamAt(x, y)
     e.currentTarget.style.cursor = seam ? 'ew-resize' : (dragRef.current?.type==='pan' ? 'grabbing' : 'grab')
     const { xToKm } = helpersRef.current
-    if (showGuide) setHoverKm(xToKm(x))
-    else setHoverKm(null)
+    if (showGuide) {
+      let km = xToKm(x)
+      if (seam) {
+        if (seam.bandKey === 'bridges') {
+          km = seam.edge === 'start' ? seam.right.startKm : seam.left.endKm
+        } else {
+          km = seam.left.endKm
+        }
+      }
+      setHoverKm(km)
+    } else setHoverKm(null)
 
     const drag = dragRef.current
     if (!drag) return
