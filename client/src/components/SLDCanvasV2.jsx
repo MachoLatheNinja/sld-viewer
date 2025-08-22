@@ -287,26 +287,26 @@ export default function SLDCanvasV2({
       ctx.strokeStyle = '#5d4037'
       ctx.lineWidth = 2
 
-      // top beam of the bridge
-      const beamY = yTop - 8
-      ctx.beginPath()
-      ctx.moveTo(x1, beamY)
-      ctx.lineTo(x2, beamY)
-      ctx.stroke()
+      // draw bridge symbol: two parallel lines with angled ends
+      const topY = yTop - 8
+      const bottomY = yTop + thickness + 8
+      const flare = 10
 
-      // braces at each end of the bridge
-      const braceOffset = 10
       ctx.beginPath()
-      // left end
-      ctx.moveTo(x1, beamY)
-      ctx.lineTo(x1 + braceOffset, yTop)
-      ctx.moveTo(x1, beamY)
-      ctx.lineTo(x1 + braceOffset, yTop + thickness)
-      // right end
-      ctx.moveTo(x2, beamY)
-      ctx.lineTo(x2 - braceOffset, yTop)
-      ctx.moveTo(x2, beamY)
-      ctx.lineTo(x2 - braceOffset, yTop + thickness)
+      // horizontal deck lines
+      ctx.moveTo(x1, topY)
+      ctx.lineTo(x2, topY)
+      ctx.moveTo(x1, bottomY)
+      ctx.lineTo(x2, bottomY)
+      // angled extensions
+      ctx.moveTo(x1, topY)
+      ctx.lineTo(x1 - flare, topY - flare)
+      ctx.moveTo(x1, bottomY)
+      ctx.lineTo(x1 - flare, bottomY + flare)
+      ctx.moveTo(x2, topY)
+      ctx.lineTo(x2 + flare, topY - flare)
+      ctx.moveTo(x2, bottomY)
+      ctx.lineTo(x2 + flare, bottomY + flare)
       ctx.stroke()
     }
 
