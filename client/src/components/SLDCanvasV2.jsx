@@ -42,6 +42,7 @@ export default function SLDCanvasV2({
   const rafRef      = useRef(0)
   const helpersRef  = useRef({ kmToX:(km)=>km, xToKm:(x)=>x })
   const dragRef     = useRef(null)
+  const [hoverKm, setHoverKm] = useState(null)
 
   const lengthKm = Number(road?.lengthKm || 0)
   const fromKm = Math.max(0, domain?.fromKm ?? 0)
@@ -364,6 +365,26 @@ export default function SLDCanvasV2({
     }
   }
 
+  const valueAt = (key, km) => {
+    const arr = bandArrayByKey(key)
+    for (const r of arr) {
+      if (km >= r.startKm - EPS && km <= r.endKm + EPS) {
+        switch (key) {
+          case 'surface': return r.surface
+          case 'aadt': return formatAADT(r.aadt)
+          case 'status': return r.status
+          case 'quality': return r.quality
+          case 'lanes': return `${r.lanes} lanes`
+          case 'rowWidth': return `${r.rowWidthM} m`
+          case 'municipality': return r.name
+          case 'bridges': return r.name
+          default: return ''
+        }
+      }
+    }
+    return ''
+  }
+
   // hit seam/edge: for bridges, allow start & end edge handles; for others, only adjacent seams
   const hitSeamAt = (x, y) => {
     const { kmToX } = helpersRef.current
@@ -438,6 +459,8 @@ export default function SLDCanvasV2({
     const y = e.clientY - rect.top
     const seam = hitSeamAt(x, y)
     e.currentTarget.style.cursor = seam ? 'ew-resize' : (dragRef.current?.type==='pan' ? 'grabbing' : 'grab')
+    const { xToKm } = helpersRef.current
+    setHoverKm(xToKm(x))
 
     const drag = dragRef.current
     if (!drag) return
@@ -479,21 +502,57 @@ export default function SLDCanvasV2({
     await onMoveSeam?.(drag.bandKey, drag.left.id, drag.right.id, dropKm)
   }
 
+  const onMouseLeave = () => {
+    setHoverKm(null)
+  }
+
+  const hoverX = hoverKm == null ? null : helpersRef.current.kmToX(hoverKm)
+
   return (
     <div style={{ border:'1px solid #e0e0e0', borderRadius:8, background:'#fff', padding:8 }}>
       <div style={{ fontWeight:700, marginBottom:6 }}>
         {road?.name ?? 'Road'} — Editable Independent Bands
       </div>
-      <canvas
-        ref={canvasRef}
-        style={{ width:'100%', height: layout.totalH, display:'block', cursor:'grab' }}
-        width={1200}
-        height={layout.totalH}
-        onWheel={onWheel}
-        onMouseDown={onMouseDown}
-        onMouseMove={onMouseMove}
-        onMouseUp={onMouseUp}
-      />
+      <div style={{ position:'relative', width:'100%', height: layout.totalH }}>
+        <canvas
+          ref={canvasRef}
+          style={{ width:'100%', height: layout.totalH, display:'block', cursor:'grab' }}
+          width={1200}
+          height={layout.totalH}
+          onWheel={onWheel}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUp}
+          onMouseLeave={onMouseLeave}
+        />
+        {hoverKm != null && (
+          <>
+            <div style={{ position:'absolute', top:0, bottom:0, left:hoverX, width:1, background:'#FFC107', pointerEvents:'none' }} />
+            {layout.bandBoxes.map((b) => {
+              const v = valueAt(b.key, hoverKm)
+              if (!v) return null
+              return (
+                <div
+                  key={b.key}
+                  style={{
+                    position:'absolute',
+                    left:hoverX,
+                    top: b.y + b.h/2,
+                    transform:'translate(-50%, -50%)',
+                    background:'rgba(0,0,0,0.7)',
+                    color:'#fff',
+                    borderRadius:4,
+                    padding:'2px 4px',
+                    fontSize:11,
+                    pointerEvents:'none',
+                    whiteSpace:'nowrap'
+                  }}
+                >{v}</div>
+              )
+            })}
+          </>
+        )}
+      </div>
       <div style={{ fontSize:12, color:'#616161', marginTop:6 }}>
         Drag seams to edit. Bridges allow gaps and support dragging either edge. Pan by dragging; scroll to zoom.
       </div>
