@@ -15,28 +15,10 @@ model Road {
   lengthM  Float
 
   // back-relations (required so Prisma is happy)
-  segments          Segment[]
   sections          Section[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-}
-
-model Segment {
-    id         Int      @id @default(autoincrement())
-    roadId     Int
-    startM     Float
-    endM       Float
-    surface    String?
-    lanesLeft  Int?
-    lanesRight Int?
-    status     String?
-    quality    String?
-    road       Road     @relation(fields: [roadId], references: [id])
-    createdAt  DateTime @default(now())
-    updatedAt  DateTime @updatedAt
-
-  @@index([roadId, startM, endM])
 }
 
 model Section {

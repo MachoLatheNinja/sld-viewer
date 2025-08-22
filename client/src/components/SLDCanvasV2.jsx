@@ -28,7 +28,6 @@ function formatAADT(n){ return (n==null)? '' : String(n).replace(/\B(?=(\d{3})+(
 
 export default function SLDCanvasV2({
   road,
-  segments = [],
   layers,
   domain,
   onDomainChange,
@@ -115,20 +114,12 @@ export default function SLDCanvasV2({
   const lanesAt = (km) => {
     const arr = layers?.lanes || []
     for (const r of arr) if (km >= r.startKm - EPS && km <= r.endKm + EPS) return Math.max(1, r.lanes)
-    let best = 2
-    for (const s of segments) {
-      if (km >= s.startKm - EPS && km <= s.endKm + EPS) {
-        const total = Math.max(1, (s.lanesLeft||0) + (s.lanesRight||0))
-        best = Math.max(best, total)
-      }
-    }
-    return best
+    return 2
   }
 
   const surfaceAt = (km) => {
     const arr = layers?.surface || []
     for (const r of arr) if (km >= r.startKm - EPS && km <= r.endKm + EPS) return r.surface
-    for (const s of segments) if (km >= s.startKm - EPS && km <= s.endKm + EPS) return s.surface || 'Asphalt'
     return 'Asphalt'
   }
 
@@ -290,7 +281,7 @@ export default function SLDCanvasV2({
         useEffect(() => {
           cancelAnimationFrame(rafRef.current)
           rafRef.current = requestAnimationFrame(() => draw())
-        }, [fromKm, toKm, panX, zoom, layout, layers, segments]) // eslint-disable-line react-hooks/exhaustive-deps
+        }, [fromKm, toKm, panX, zoom, layout, layers]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------- interactions ----------
   const bandArrayByKey = (key) => {
