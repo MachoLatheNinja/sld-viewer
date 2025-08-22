@@ -493,9 +493,9 @@ export default function SLDCanvasV2({
     const { xToKm } = helpersRef.current
     const { offsetX } = e.nativeEvent
     const mouseKm = xToKm(offsetX)
-    const zoomIn = e.deltaY < 0
-    const factor = zoomIn ? 0.9 : 1.1
     const currSpan = Math.max(0.001, toKm - fromKm)
+    // Use the wheel delta directly for smoother zooming instead of fixed steps.
+    const factor = Math.exp(e.deltaY * 0.001)
     let newSpan = Math.min(lengthKm, Math.max(0.05, currSpan * factor))
     const leftFrac = (mouseKm - fromKm) / currSpan
     let newFrom = mouseKm - leftFrac * newSpan
