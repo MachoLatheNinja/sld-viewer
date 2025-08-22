@@ -249,7 +249,7 @@ export default function SLDCanvasV2({
     }
 
     // center line
-    ctx.fillStyle = '#fff'
+    ctx.fillStyle = '#ffd54f'
     ctx.fillRect(xStart, centerY - MARK_THICK / 2, xEnd - xStart, MARK_THICK)
 
     // dashed lane divisions for multi-lane roads
@@ -428,8 +428,15 @@ export default function SLDCanvasV2({
       }
     }
     // kilometer posts from kmPost table (if any)
-    const kmPosts = (layers?.kmPosts || [])
+    let kmPosts = (layers?.kmPosts || [])
       .filter(p => p.chainageKm >= fromKm && p.chainageKm <= toKm)
+
+    if (spanM > 50000) {
+      kmPosts = kmPosts.filter(p => Math.round(p.chainageKm) % 10 === 0)
+    } else if (spanM >= 10000) {
+      kmPosts = kmPosts.filter(p => Math.round(p.chainageKm) % 5 === 0)
+    }
+
     for (const p of kmPosts) {
       const x = kmToX(p.chainageKm)
       const label = p.lrp?.replace(/^\s*KM\s*/i, '') ?? Math.round(p.chainageKm)
