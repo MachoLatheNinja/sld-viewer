@@ -286,14 +286,28 @@ export default function SLDCanvasV2({
       const yTop = centerY - thickness / 2
       ctx.strokeStyle = '#5d4037'
       ctx.lineWidth = 2
-      const spacing = 30
-      for (let xi = x1 + spacing / 2; xi < x2; xi += spacing) {
-        ctx.beginPath()
-        ctx.moveTo(xi - 6, yTop)
-        ctx.lineTo(xi, yTop - 10)
-        ctx.lineTo(xi + 6, yTop)
-        ctx.stroke()
-      }
+
+      // top beam of the bridge
+      const beamY = yTop - 8
+      ctx.beginPath()
+      ctx.moveTo(x1, beamY)
+      ctx.lineTo(x2, beamY)
+      ctx.stroke()
+
+      // braces at each end of the bridge
+      const braceOffset = 10
+      ctx.beginPath()
+      // left end
+      ctx.moveTo(x1, beamY)
+      ctx.lineTo(x1 + braceOffset, yTop)
+      ctx.moveTo(x1, beamY)
+      ctx.lineTo(x1 + braceOffset, yTop + thickness)
+      // right end
+      ctx.moveTo(x2, beamY)
+      ctx.lineTo(x2 - braceOffset, yTop)
+      ctx.moveTo(x2, beamY)
+      ctx.lineTo(x2 - braceOffset, yTop + thickness)
+      ctx.stroke()
     }
 
         // KM labels / axis
