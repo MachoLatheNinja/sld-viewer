@@ -432,12 +432,16 @@ export default function SLDCanvasV2({
     // kilometer posts from kmPost table (if any)
     let kmPosts = (layers?.kmPosts || [])
       .filter(p => p.chainageKm >= fromKm && p.chainageKm <= toKm)
-      .filter(p => {
+
+    // When zoomed out beyond 10 km, trim posts to keep labels readable.
+    if (spanM > 10000) {
+      kmPosts = kmPosts.filter(p => {
         const kmVal = parseLrpKm(p.lrp)
         if (kmVal == null) return false
         const rounded = Math.round(kmVal)
         return spanM > 50000 ? rounded % 10 === 0 : rounded % 5 === 0
       })
+    }
 
     for (const p of kmPosts) {
       const x = kmToX(p.chainageKm)
