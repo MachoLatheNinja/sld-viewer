@@ -181,26 +181,64 @@ export default function SLDCanvasV2({
     ctx.fillStyle = '#616161'
     ctx.lineWidth = 1
       const spanKm = toKm - fromKm
-      // show 100m ticks when viewing 2 km or less of road
       const showHundred = spanKm <= 2
-      const step = showHundred ? 0.1 : 1
-      const startTick = Math.ceil(fromKm / step) * step
+      const kmPostsArr = (layers?.kmPosts || []).slice().sort((a, b) => a.chainageKm - b.chainageKm)
       ctx.textAlign = 'center'
-      for (let k = startTick; k <= toKm + 1e-9; k += step) {
-        const x = kmToX(k)
-        ctx.beginPath()
-        ctx.moveTo(x, layout.axisY)
-        ctx.lineTo(x, layout.axisY + 6)
-        ctx.stroke()
-        let label
-        if (showHundred) {
-          const isWholeKm = Math.abs(k - Math.round(k)) < 1e-9
-          label = isWholeKm ? String(Math.round(k)) : String(Math.round(k * 1000))
-        } else {
-          label = String(Math.round(k))
+      if (kmPostsArr.length) {
+        const prev = kmPostsArr.filter(p => p.chainageKm < fromKm).slice(-1)[0]
+        const next = kmPostsArr.find(p => p.chainageKm > toKm)
+        const posts = kmPostsArr.filter(p => p.chainageKm >= fromKm && p.chainageKm <= toKm)
+        if (prev) posts.unshift(prev)
+        if (next) posts.push(next)
+        for (let i = 0; i < posts.length; i++) {
+          const p = posts[i]
+          const nextP = posts[i + 1]
+          if (p.chainageKm >= fromKm && p.chainageKm <= toKm) {
+            const x = kmToX(p.chainageKm)
+            ctx.beginPath()
+            ctx.moveTo(x, layout.axisY)
+            ctx.lineTo(x, layout.axisY + 6)
+            ctx.stroke()
+            const label = p.lrp?.replace(/^\s*KM\s*/i, '') ?? Math.round(p.chainageKm)
+            ctx.font = '10px system-ui'
+            ctx.fillText(label, x, layout.axisY + 18)
+          }
+          if (showHundred && nextP) {
+            const startKm = Math.max(fromKm, p.chainageKm)
+            const endKm = Math.min(toKm, nextP.chainageKm)
+            let m = Math.ceil((startKm - p.chainageKm) / 0.1) * 0.1 + p.chainageKm
+            for (; m < endKm - 1e-9; m += 0.1) {
+              if (Math.abs(m - p.chainageKm) < 1e-9 || m > nextP.chainageKm - 1e-9) break
+              const x = kmToX(m)
+              ctx.beginPath()
+              ctx.moveTo(x, layout.axisY)
+              ctx.lineTo(x, layout.axisY + 4)
+              ctx.stroke()
+              const offsetM = Math.round((m - p.chainageKm) * 1000)
+              ctx.font = '10px system-ui'
+              ctx.fillText(String(offsetM), x, layout.axisY + 18)
+            }
+          }
         }
-        ctx.font = '10px system-ui'
-        ctx.fillText(label, x, layout.axisY + 18)
+      } else {
+        const step = showHundred ? 0.1 : 1
+        const startTick = Math.ceil(fromKm / step) * step
+        for (let k = startTick; k <= toKm + 1e-9; k += step) {
+          const x = kmToX(k)
+          ctx.beginPath()
+          ctx.moveTo(x, layout.axisY)
+          ctx.lineTo(x, layout.axisY + 6)
+          ctx.stroke()
+          let label
+          if (showHundred) {
+            const isWholeKm = Math.abs(k - Math.round(k)) < 1e-9
+            label = isWholeKm ? String(Math.round(k)) : String(Math.round(k * 1000))
+          } else {
+            label = String(Math.round(k))
+          }
+          ctx.font = '10px system-ui'
+          ctx.fillText(label, x, layout.axisY + 18)
+        }
       }
       ctx.textAlign = 'left'
       ctx.fillText(showHundred ? 'm' : 'km', w-16, layout.axisY+18)
