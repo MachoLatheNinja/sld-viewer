@@ -277,8 +277,9 @@ export default function SLDCanvasV2({
     ctx.strokeStyle = '#9e9e9e'
     ctx.fillStyle = '#616161'
     ctx.lineWidth = 1
-      const spanKm = toKm - fromKm
-      const spanM = spanKm * 1000
+    const spanKm = toKm - fromKm
+    const spanM = spanKm * 1000
+    if (spanM <= 10000) {
       let stepM = 1000
       if (spanM < 100) stepM = 10
       else if (spanM < 500) stepM = 25
@@ -349,6 +350,7 @@ export default function SLDCanvasV2({
       }
       ctx.textAlign = 'left'
       ctx.fillText(showSub ? 'm' : 'km', w-16, layout.axisY+18)
+    }
 
     // ----- BANDS -----
     const drawRanges = (box, ranges, colorFn, labelFn) => {
@@ -430,12 +432,12 @@ export default function SLDCanvasV2({
     // kilometer posts from kmPost table (if any)
     let kmPosts = (layers?.kmPosts || [])
       .filter(p => p.chainageKm >= fromKm && p.chainageKm <= toKm)
-
-    if (spanM > 50000) {
-      kmPosts = kmPosts.filter(p => Math.round(p.chainageKm) % 10 === 0)
-    } else if (spanM >= 10000) {
-      kmPosts = kmPosts.filter(p => Math.round(p.chainageKm) % 5 === 0)
-    }
+      .filter(p => {
+        const kmVal = parseLrpKm(p.lrp)
+        if (kmVal == null) return false
+        const rounded = Math.round(kmVal)
+        return spanM > 50000 ? rounded % 10 === 0 : rounded % 5 === 0
+      })
 
     for (const p of kmPosts) {
       const x = kmToX(p.chainageKm)
