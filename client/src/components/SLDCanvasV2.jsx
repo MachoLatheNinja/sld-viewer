@@ -9,9 +9,9 @@ const LANE_ROW_H = 126
 const LANE_UNIT  = 24
 const MARK_THICK = 3
 
-const KM_POST_H = 20
+const KM_POST_H = 25
 const KM_POST_LABEL_H = 14
-const KM_POST_GAP = 4
+const KM_POST_GAP = -20
 const KM_POST_Y_OFFSET = -6
 
 const GAP = 8
@@ -286,14 +286,28 @@ export default function SLDCanvasV2({
       const yTop = centerY - thickness / 2
       ctx.strokeStyle = '#5d4037'
       ctx.lineWidth = 2
-      const spacing = 30
-      for (let xi = x1 + spacing / 2; xi < x2; xi += spacing) {
-        ctx.beginPath()
-        ctx.moveTo(xi - 6, yTop)
-        ctx.lineTo(xi, yTop - 10)
-        ctx.lineTo(xi + 6, yTop)
-        ctx.stroke()
-      }
+
+      // draw bridge symbol: two parallel lines with angled ends
+      const topY = yTop - 8
+      const bottomY = yTop + thickness + 8
+      const flare = 10
+
+      ctx.beginPath()
+      // horizontal deck lines
+      ctx.moveTo(x1, topY)
+      ctx.lineTo(x2, topY)
+      ctx.moveTo(x1, bottomY)
+      ctx.lineTo(x2, bottomY)
+      // angled extensions
+      ctx.moveTo(x1, topY)
+      ctx.lineTo(x1 - flare, topY - flare)
+      ctx.moveTo(x1, bottomY)
+      ctx.lineTo(x1 - flare, bottomY + flare)
+      ctx.moveTo(x2, topY)
+      ctx.lineTo(x2 + flare, topY - flare)
+      ctx.moveTo(x2, bottomY)
+      ctx.lineTo(x2 + flare, bottomY + flare)
+      ctx.stroke()
     }
 
         // KM labels / axis
