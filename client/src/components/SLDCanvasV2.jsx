@@ -201,32 +201,50 @@ export default function SLDCanvasV2({
 
     // ROAD strip (no seam lines)
     const xStart = kmToX(fromKm), xEnd = kmToX(toKm)
-    const sampleCount = Math.max(1, Math.floor((toKm - fromKm) * 30))
-    let prevYTop=null, prevYBot=null, prevX=null
 
-    for (let i=0;i<=sampleCount;i++){
-      const t = i / sampleCount
-      const km = fromKm + t * (toKm - fromKm)
-      const x = kmToX(km)
+    // Build breakpoints where lane count or surface changes to reduce
+    // the amount of drawing work. This keeps panning responsive even on
+    // long stretches of road.
+    const bps = new Set([fromKm, toKm])
+    const addRange = (r = {}) => {
+      const s = Math.max(fromKm, r.startKm ?? fromKm)
+      const e = Math.min(toKm,   r.endKm   ?? toKm)
+      if (e > s) { bps.add(s); bps.add(e) }
+    }
+    ;(layers?.lanes || []).forEach(addRange)
+    ;(layers?.surface || []).forEach(addRange)
+    const kmPoints = Array.from(bps).sort((a, b) => a - b)
+
+    let prevKm = kmPoints[0]
+    const centerY = layout.lanesY + LANE_ROW_H / 2
+    const startThickness = Math.max(18, lanesAt(prevKm) * (LANE_UNIT * 0.9))
+    let prevTop = centerY - startThickness / 2
+    let prevBot = centerY + startThickness / 2
+
+    for (let i = 1; i < kmPoints.length; i++) {
+      const km = kmPoints[i]
       const lanes = lanesAt(km)
       const thickness = Math.max(18, lanes * (LANE_UNIT * 0.9))
-      const yCenter = layout.lanesY + LANE_ROW_H/2
-      const yTop = yCenter - thickness/2
-      const yBot = yCenter + thickness/2
-      const surf = surfaceAt(km)
+      const yTop = centerY - thickness / 2
+      const yBot = centerY + thickness / 2
+      const midKm = (prevKm + km) / 2
+      const surf = surfaceAt(midKm)
       const color = SURFACE_COLORS[surf] || '#707070'
+      const x1 = kmToX(prevKm)
+      const x2 = kmToX(km)
 
-      if (prevX != null) {
-        ctx.fillStyle = color
-        ctx.beginPath()
-        ctx.moveTo(prevX-0.5, Math.floor(prevYTop)+0.5)
-        ctx.lineTo(x+0.5,     Math.floor(yTop)+0.5)
-        ctx.lineTo(x+0.5,     Math.ceil(yBot)+0.5)
-        ctx.lineTo(prevX-0.5, Math.ceil(prevYBot)+0.5)
-        ctx.closePath()
-        ctx.fill()
-      }
-      prevX=x; prevYTop=yTop; prevYBot=yBot
+      ctx.fillStyle = color
+      ctx.beginPath()
+      ctx.moveTo(x1 - 0.5, Math.floor(prevTop) + 0.5)
+      ctx.lineTo(x2 + 0.5, Math.floor(yTop) + 0.5)
+      ctx.lineTo(x2 + 0.5, Math.ceil(yBot) + 0.5)
+      ctx.lineTo(x1 - 0.5, Math.ceil(prevBot) + 0.5)
+      ctx.closePath()
+      ctx.fill()
+
+      prevKm = km
+      prevTop = yTop
+      prevBot = yBot
     }
 
     // dashed center line
