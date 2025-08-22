@@ -112,13 +112,13 @@ export default function App() {
             <button onClick={onSearch}>Search</button>
             <select
               value={road?.id || ''}
-              onChange={(e)=>{ const next = roads.find(r=>r.id===Number(e.target.value)); setRoad(next||null) }}
+              onChange={(e)=>{ const next = roads.find(r=>r.id===e.target.value); setRoad(next||null) }}
             >
               {roads.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
             <select
               value={sectionId || ''}
-              onChange={(e)=>setSectionId(Number(e.target.value))}
+              onChange={(e)=>setSectionId(e.target.value)}
             >
               {sectionList.map(s => <option key={s.id} value={s.id}>{s.id}</option>)}
             </select>
