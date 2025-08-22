@@ -273,12 +273,36 @@ export default function SLDCanvasV2({
       }
     }
 
+    // bridge markers
+    for (const r of layers?.bridges || []) {
+      if (r.endKm < fromKm || r.startKm > toKm) continue
+      const startKm = Math.max(fromKm, r.startKm)
+      const endKm = Math.min(toKm, r.endKm)
+      const x1 = kmToX(startKm)
+      const x2 = kmToX(endKm)
+      const midKm = (startKm + endKm) / 2
+      const lanes = lanesAt(midKm)
+      const thickness = Math.max(18, lanes * (LANE_UNIT * 0.9))
+      const yTop = centerY - thickness / 2
+      ctx.strokeStyle = '#5d4037'
+      ctx.lineWidth = 2
+      const spacing = 30
+      for (let xi = x1 + spacing / 2; xi < x2; xi += spacing) {
+        ctx.beginPath()
+        ctx.moveTo(xi - 6, yTop)
+        ctx.lineTo(xi, yTop - 10)
+        ctx.lineTo(xi + 6, yTop)
+        ctx.stroke()
+      }
+    }
+
         // KM labels / axis
     ctx.strokeStyle = '#9e9e9e'
     ctx.fillStyle = '#616161'
     ctx.lineWidth = 1
-      const spanKm = toKm - fromKm
-      const spanM = spanKm * 1000
+    const spanKm = toKm - fromKm
+    const spanM = spanKm * 1000
+    if (spanM <= 10000) {
       let stepM = 1000
       if (spanM < 100) stepM = 10
       else if (spanM < 500) stepM = 25
@@ -349,6 +373,7 @@ export default function SLDCanvasV2({
       }
       ctx.textAlign = 'left'
       ctx.fillText(showSub ? 'm' : 'km', w-16, layout.axisY+18)
+    }
 
     // ----- BANDS -----
     const drawRanges = (box, ranges, colorFn, labelFn) => {
@@ -431,10 +456,14 @@ export default function SLDCanvasV2({
     let kmPosts = (layers?.kmPosts || [])
       .filter(p => p.chainageKm >= fromKm && p.chainageKm <= toKm)
 
-    if (spanM > 50000) {
-      kmPosts = kmPosts.filter(p => Math.round(p.chainageKm) % 10 === 0)
-    } else if (spanM >= 10000) {
-      kmPosts = kmPosts.filter(p => Math.round(p.chainageKm) % 5 === 0)
+    // When zoomed out beyond 10 km, trim posts to keep labels readable.
+    if (spanM > 10000) {
+      kmPosts = kmPosts.filter(p => {
+        const kmVal = parseLrpKm(p.lrp)
+        if (kmVal == null) return false
+        const rounded = Math.round(kmVal)
+        return spanM > 50000 ? rounded % 10 === 0 : rounded % 5 === 0
+      })
     }
 
     for (const p of kmPosts) {
