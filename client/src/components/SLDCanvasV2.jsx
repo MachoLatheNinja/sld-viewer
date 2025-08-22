@@ -9,9 +9,9 @@ const LANE_ROW_H = 126
 const LANE_UNIT  = 24
 const MARK_THICK = 3
 
-const KM_POST_H = 20
+const KM_POST_H = 25
 const KM_POST_LABEL_H = 14
-const KM_POST_GAP = 4
+const KM_POST_GAP = -20
 const KM_POST_Y_OFFSET = -6
 
 const GAP = 8
