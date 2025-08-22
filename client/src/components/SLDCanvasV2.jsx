@@ -248,10 +248,30 @@ export default function SLDCanvasV2({
       ctx.fill()
     }
 
-    // dashed center line
-    ctx.fillStyle = '#ffd54f'
-    const yCenter = layout.lanesY + LANE_ROW_H/2
-    drawDashes(ctx, xStart, xEnd, yCenter, 12, 10, MARK_THICK)
+    // center line
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(xStart, centerY - MARK_THICK / 2, xEnd - xStart, MARK_THICK)
+
+    // dashed lane divisions for multi-lane roads
+    for (let i = 1; i < kmPoints.length; i++) {
+      const startKm = kmPoints[i - 1]
+      const endKm = kmPoints[i]
+      const midKm = (startKm + endKm) / 2
+      const lanes = lanesAt(midKm)
+      if (lanes > 2) {
+        const thickness = Math.max(18, lanes * (LANE_UNIT * 0.9))
+        const yTop = centerY - thickness / 2
+        const laneW = thickness / lanes
+        const x1 = kmToX(startKm)
+        const x2 = kmToX(endKm)
+        for (let lane = 1; lane < lanes; lane++) {
+          const y = yTop + laneW * lane
+          if (Math.abs(y - centerY) < 0.1) continue
+          ctx.fillStyle = '#ffd54f'
+          drawDashes(ctx, x1, x2, y, 12, 10, MARK_THICK)
+        }
+      }
+    }
 
         // KM labels / axis
     ctx.strokeStyle = '#9e9e9e'
