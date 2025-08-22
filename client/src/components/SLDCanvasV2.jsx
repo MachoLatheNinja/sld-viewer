@@ -12,6 +12,7 @@ const MARK_THICK = 3
 const KM_POST_H = 20
 const KM_POST_LABEL_H = 14
 const KM_POST_GAP = 4
+const KM_POST_Y_OFFSET = -6
 
 const GAP = 8
 const TOP_PAD = 24
@@ -59,7 +60,7 @@ export default function SLDCanvasV2({
     const lanesY = y; y += LANE_ROW_H
     // ruler sits just below the road visualization
     const axisY = y + 2
-    const kmPostY = axisY + AXIS_H + KM_POST_GAP
+    const kmPostY = axisY + AXIS_H + KM_POST_GAP + KM_POST_Y_OFFSET
     y = kmPostY + KM_POST_H + KM_POST_LABEL_H + GAP
     const bandBoxes = bands.map((b) => {
       const h = Math.max(MIN_BAND_H, Math.min(MAX_BAND_H, Number(b.height)||28))
@@ -94,8 +95,9 @@ export default function SLDCanvasV2({
       const rectH = KM_POST_LABEL_H
       const hatchLen = 4
       const cx = Math.round(x) + 0.5
+      const color = '#FFC107'
 
-      ctx.fillStyle = '#FFC107'
+      ctx.fillStyle = color
       ctx.beginPath()
       ctx.moveTo(cx - topW/2, y)
       ctx.lineTo(cx + topW/2, y)
@@ -105,8 +107,8 @@ export default function SLDCanvasV2({
       ctx.fill()
       ctx.fillRect(cx - rectW/2, y + h, rectW, rectH)
 
-      ctx.strokeStyle = '#000'
-      ctx.lineWidth = 1
+      ctx.strokeStyle = color
+      ctx.lineWidth = 3
       ctx.beginPath()
       ctx.moveTo(cx, y - hatchLen)
       ctx.lineTo(cx, y)
