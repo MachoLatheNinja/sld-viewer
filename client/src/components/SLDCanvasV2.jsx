@@ -94,7 +94,7 @@ export default function SLDCanvasV2({
     const w = el.clientWidth || 1200
     const desiredZoom = (w - LEFT_PAD - RIGHT_PAD) / Math.max(0.001, (toKm - fromKm))
     setZoom(desiredZoom)
-    setPanX(LEFT_PAD - fromKm * desiredZoom)
+    setPanX(-fromKm * desiredZoom)
   }, [fromKm, toKm, lengthKm])
 
   const layout = useMemo(()=>{
