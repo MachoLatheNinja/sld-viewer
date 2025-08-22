@@ -202,7 +202,7 @@ export default function SLDCanvasV2({
       if (spanM < 100) stepM = 10
       else if (spanM < 500) stepM = 25
       else if (spanM < 1000) stepM = 50
-      else if (spanM < 2000) stepM = 100
+      else if (spanM < 3000) stepM = 100
       const stepKm = stepM / 1000
       const showSub = stepKm < 1
       const kmPostsArr = (layers?.kmPosts || []).slice().sort((a, b) => a.chainageKm - b.chainageKm)
@@ -227,8 +227,8 @@ export default function SLDCanvasV2({
             const startKm = Math.max(fromKm, p.chainageKm)
             const endKm = Math.min(toKm, nextP.chainageKm)
             let m = Math.ceil((startKm - p.chainageKm) / stepKm) * stepKm + p.chainageKm
-            for (; m < endKm - 1e-9; m += stepKm) {
-              if (Math.abs(m - p.chainageKm) < 1e-9 || m > nextP.chainageKm - 1e-9) break
+            if (m <= p.chainageKm + 1e-9) m += stepKm
+            for (; m < endKm - 1e-9 && m < nextP.chainageKm - 1e-9; m += stepKm) {
               const x = kmToX(m)
               ctx.beginPath()
               ctx.moveTo(x, layout.axisY)
