@@ -119,9 +119,9 @@ export default function SLDCanvasV2({
       ctx.fillStyle = '#000'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.font = 'bold 9px system-ui'
+      ctx.font = 'bold 8px system-ui'
       ctx.fillText('KM', cx, y + h/2)
-      ctx.font = '8px system-ui'
+      ctx.font = 'bold 10px system-ui'
       ctx.fillText(String(kmValue), cx, y + h + rectH/2)
       ctx.textAlign = 'left'
       ctx.textBaseline = 'alphabetic'
@@ -197,7 +197,14 @@ export default function SLDCanvasV2({
     ctx.fillStyle = '#616161'
     ctx.lineWidth = 1
       const spanKm = toKm - fromKm
-      const showHundred = spanKm <= 2
+      const spanM = spanKm * 1000
+      let stepM = 1000
+      if (spanM < 100) stepM = 10
+      else if (spanM < 500) stepM = 25
+      else if (spanM < 1000) stepM = 50
+      else if (spanM < 2000) stepM = 100
+      const stepKm = stepM / 1000
+      const showSub = stepKm < 1
       const kmPostsArr = (layers?.kmPosts || []).slice().sort((a, b) => a.chainageKm - b.chainageKm)
       const prev = kmPostsArr.filter(p => p.chainageKm < fromKm).slice(-1)[0]
       const next = kmPostsArr.find(p => p.chainageKm > toKm)
@@ -216,11 +223,11 @@ export default function SLDCanvasV2({
             ctx.lineTo(x, layout.axisY + 6)
             ctx.stroke()
           }
-          if (showHundred && nextP) {
+          if (showSub && nextP) {
             const startKm = Math.max(fromKm, p.chainageKm)
             const endKm = Math.min(toKm, nextP.chainageKm)
-            let m = Math.ceil((startKm - p.chainageKm) / 0.1) * 0.1 + p.chainageKm
-            for (; m < endKm - 1e-9; m += 0.1) {
+            let m = Math.ceil((startKm - p.chainageKm) / stepKm) * stepKm + p.chainageKm
+            for (; m < endKm - 1e-9; m += stepKm) {
               if (Math.abs(m - p.chainageKm) < 1e-9 || m > nextP.chainageKm - 1e-9) break
               const x = kmToX(m)
               ctx.beginPath()
@@ -234,17 +241,17 @@ export default function SLDCanvasV2({
           }
         }
       } else {
-        const step = showHundred ? 0.1 : 1
+        const step = showSub ? stepKm : 1
         const startTick = Math.ceil(fromKm / step) * step
         for (let k = startTick; k <= toKm + 1e-9; k += step) {
           const x = kmToX(k)
           const isWholeKm = Math.abs(k - Math.round(k)) < 1e-9
           ctx.beginPath()
           ctx.moveTo(x, layout.axisY)
-          ctx.lineTo(x, layout.axisY + (showHundred && !isWholeKm ? 4 : 6))
+          ctx.lineTo(x, layout.axisY + (showSub && !isWholeKm ? 4 : 6))
           ctx.stroke()
           let label
-          if (showHundred) {
+          if (showSub) {
             if (isWholeKm) {
               if (kmPostsArr.some(p => Math.abs(p.chainageKm - k) < 1e-9)) continue
               label = String(Math.round(k))
@@ -260,7 +267,7 @@ export default function SLDCanvasV2({
         }
       }
       ctx.textAlign = 'left'
-      ctx.fillText(showHundred ? 'm' : 'km', w-16, layout.axisY+18)
+      ctx.fillText(showSub ? 'm' : 'km', w-16, layout.axisY+18)
 
     // ----- BANDS -----
     const drawRanges = (box, ranges, colorFn, labelFn) => {
