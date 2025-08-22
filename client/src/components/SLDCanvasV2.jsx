@@ -180,8 +180,6 @@ export default function SLDCanvasV2({
     ctx.strokeStyle = '#9e9e9e'
     ctx.fillStyle = '#616161'
     ctx.lineWidth = 1
-      const minPost = Math.ceil(fromKm)
-      const maxPost = Math.floor(toKm)
       const spanKm = toKm - fromKm
       // show 100m ticks when viewing 2 km or less of road
       const showHundred = spanKm <= 2
@@ -271,11 +269,14 @@ export default function SLDCanvasV2({
           break
       }
     }
-    // kilometer posts
-      for (let k = minPost; k <= maxPost; k++) {
-        const x = kmToX(k)
-        drawKmPost(ctx, x, layout.kmPostY, k)
-      }
+    // kilometer posts from kmPost table (if any)
+    const kmPosts = (layers?.kmPosts || [])
+      .filter(p => p.chainageKm >= fromKm && p.chainageKm <= toKm)
+    for (const p of kmPosts) {
+      const x = kmToX(p.chainageKm)
+      const label = p.lrp?.replace(/^\s*KM\s*/i, '') ?? Math.round(p.chainageKm)
+      drawKmPost(ctx, x, layout.kmPostY, label)
+    }
     }
 
         useEffect(() => {
