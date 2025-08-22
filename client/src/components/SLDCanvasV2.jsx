@@ -351,11 +351,14 @@ export default function SLDCanvasV2({
 
         const lbl = labelFn ? labelFn(r) : ''
         if (lbl) {
-          ctx.fillStyle = '#fff'
           ctx.font = '11px system-ui'
-          ctx.textAlign = 'center'
-          ctx.fillText(lbl, x1 + ww/2, trackY + (trackH/2) + 3)
-          ctx.textAlign = 'left'
+          const textW = ctx.measureText(lbl).width
+          if (textW + 4 <= ww) {
+            ctx.fillStyle = '#fff'
+            ctx.textAlign = 'center'
+            ctx.fillText(lbl, x1 + ww / 2, trackY + (trackH / 2) + 3)
+            ctx.textAlign = 'left'
+          }
         }
       }
 
