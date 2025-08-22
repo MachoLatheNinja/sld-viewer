@@ -52,15 +52,13 @@ function formatLRP(km, posts = []) {
   }
   const prevLrpKm = parseLrpKm(prev?.lrp)
   const nextLrpKm = parseLrpKm(next?.lrp)
-  if (prevLrpKm != null && nextLrpKm != null && prev !== next) {
-    const span = Math.max(1e-9, next.chainageKm - prev.chainageKm)
-    const t = (km - prev.chainageKm) / span
-    const interp = prevLrpKm + t * (nextLrpKm - prevLrpKm)
-    return formatLrpKm(interp)
+  if (prev.chainageKm <= km && prevLrpKm != null) {
+    const lrpKm = prevLrpKm + (km - prev.chainageKm)
+    return formatLrpKm(lrpKm)
   }
-  if (prevLrpKm != null) {
-    const interp = prevLrpKm + (km - prev.chainageKm)
-    return formatLrpKm(interp)
+  if (next.chainageKm >= km && nextLrpKm != null) {
+    const lrpKm = nextLrpKm - (next.chainageKm - km)
+    return formatLrpKm(lrpKm)
   }
   return formatLrpKm(km)
 }
