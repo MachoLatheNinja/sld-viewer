@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react'
 
-export default function ControlBar({ road, domain, onDomainChange }) {
+export default function ControlBar({ road, domain, onDomainChange, showGuide, onToggleGuide }) {
   const lengthKm = Number(road?.lengthKm || 0)
   const from = domain?.fromKm ?? 0
   const to   = domain?.toKm ?? Math.max(10, lengthKm)
@@ -28,6 +28,9 @@ export default function ControlBar({ road, domain, onDomainChange }) {
     <div style={{ display:'flex', alignItems:'center', gap:8, margin:'8px 0' }}>
       <div><b>LRM</b>: {fromM}–{toM} m</div>
       <div style={{ marginLeft:'auto', display:'flex', gap:6 }}>
+        <button onClick={onToggleGuide} title="Toggle guide" style={{ fontSize:16, background: showGuide ? '#ffd54f' : undefined }}>
+          📏
+        </button>
         <button onClick={()=>jump(-1)}>◀ Pan 1km</button>
         <button onClick={()=>jump(+1)}>Pan 1km ▶</button>
         <button onClick={()=>zoom(0.8)}>Zoom In</button>

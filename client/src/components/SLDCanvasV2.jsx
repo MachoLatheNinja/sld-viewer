@@ -27,6 +27,24 @@ const EPS = 1e-6
 
 function formatAADT(n){ return (n==null)? '' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') }
 
+function formatLRP(km, posts = []) {
+  const prev = posts.filter(p => p.chainageKm <= km).slice(-1)[0]
+  if (prev?.lrp) {
+    const m = /^K(\d+)\+(\d+)$/.exec(prev.lrp)
+    if (m) {
+      const baseKm = Number(m[1])
+      const baseM = Number(m[2])
+      let offset = Math.round((km - prev.chainageKm) * 1000 + baseM)
+      const k = baseKm + Math.floor(offset / 1000)
+      const mPart = offset % 1000
+      return `K${String(k).padStart(4,'0')} + ${String(mPart).padStart(3,'0')}`
+    }
+  }
+  const k = Math.floor(km)
+  const mPart = Math.round((km - k) * 1000)
+  return `K${String(k).padStart(4,'0')} + ${String(mPart).padStart(3,'0')}`
+}
+
 export default function SLDCanvasV2({
   road,
   layers,
@@ -34,6 +52,7 @@ export default function SLDCanvasV2({
   onDomainChange,
   bands = DEFAULT_BANDS,
   onMoveSeam,        // (bandKey, leftId, rightId, km, extra={})
+  showGuide,
 }) {
   const canvasRef = useRef(null)
   const [panX, setPanX] = useState(0)
@@ -47,6 +66,8 @@ export default function SLDCanvasV2({
   const lengthKm = Number(road?.lengthKm || 0)
   const fromKm = Math.max(0, domain?.fromKm ?? 0)
   const toKm   = Math.min(lengthKm, domain?.toKm ?? lengthKm)
+
+  useEffect(() => { if (!showGuide) setHoverKm(null) }, [showGuide])
 
   useEffect(()=>{
     const el = canvasRef.current; if(!el) return
@@ -460,7 +481,8 @@ export default function SLDCanvasV2({
     const seam = hitSeamAt(x, y)
     e.currentTarget.style.cursor = seam ? 'ew-resize' : (dragRef.current?.type==='pan' ? 'grabbing' : 'grab')
     const { xToKm } = helpersRef.current
-    setHoverKm(xToKm(x))
+    if (showGuide) setHoverKm(xToKm(x))
+    else setHoverKm(null)
 
     const drag = dragRef.current
     if (!drag) return
@@ -525,7 +547,7 @@ export default function SLDCanvasV2({
           onMouseUp={onMouseUp}
           onMouseLeave={onMouseLeave}
         />
-        {hoverKm != null && (
+        {showGuide && hoverKm != null && (
           <>
             <div style={{ position:'absolute', top:0, bottom:0, left:hoverX, width:1, background:'#FFC107', pointerEvents:'none' }} />
             {layout.bandBoxes.map((b) => {
@@ -537,7 +559,7 @@ export default function SLDCanvasV2({
                   style={{
                     position:'absolute',
                     left:hoverX,
-                    top: b.y + b.h/2,
+                    top: b.y + b.h/2 - 4,
                     transform:'translate(-50%, -50%)',
                     background:'rgba(0,0,0,0.7)',
                     color:'#fff',
@@ -550,6 +572,21 @@ export default function SLDCanvasV2({
                 >{v}</div>
               )
             })}
+            <div
+              style={{
+                position:'absolute',
+                left:hoverX,
+                top: layout.axisY - 8,
+                transform:'translate(-50%, -100%)',
+                background:'rgba(0,0,0,0.7)',
+                color:'#fff',
+                borderRadius:4,
+                padding:'2px 4px',
+                fontSize:11,
+                pointerEvents:'none',
+                whiteSpace:'nowrap'
+              }}
+            >{formatLRP(hoverKm, layers?.kmPosts)}</div>
           </>
         )}
       </div>

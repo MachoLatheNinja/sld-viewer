@@ -16,6 +16,8 @@ export default function App() {
   const [fromKm, setFromKm] = useState(0)
   const [toKm, setToKm] = useState(10)
 
+  const [showGuide, setShowGuide] = useState(false)
+
   const [bands] = useState(() => DEFAULT_BANDS)
   const domain = useMemo(() => ({ fromKm, toKm }), [fromKm, toKm])
   const currentSection = useMemo(() => sectionList.find(s => s.id === sectionId) || null, [sectionList, sectionId])
@@ -127,6 +129,8 @@ export default function App() {
           road={currentRoad}
           domain={domain}
           onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
+          showGuide={showGuide}
+          onToggleGuide={()=>setShowGuide(g=>!g)}
         />
 
         <SLDCanvasV2
@@ -136,6 +140,7 @@ export default function App() {
           onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
           bands={bands}
           onMoveSeam={handleMoveSeam}
+          showGuide={showGuide}
         />
       </div>
     </div>
