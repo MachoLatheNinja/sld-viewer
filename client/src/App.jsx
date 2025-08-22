@@ -56,7 +56,7 @@ export default function App() {
     setFromKm(0); setToKm(length)
 
     const slice = (arr = []) => arr
-      .filter(r => r.endKm > start && r.startKm < end)
+      .filter(r => r.sectionId === section.id)
       .map(r => ({
         ...r,
         startKm: Math.max(r.startKm, start) - start,
@@ -64,7 +64,7 @@ export default function App() {
       }))
 
     const slicePosts = (arr = []) => arr
-      .filter(p => p.chainageKm >= start && p.chainageKm <= end)
+      .filter(p => p.sectionId === section.id)
       .map(p => ({ ...p, chainageKm: p.chainageKm - start }))
 
     if (allLayers) {
@@ -93,7 +93,7 @@ export default function App() {
     if (!road) return
     await moveBandSeam(road.id, bandKey, leftId, rightId, km, extra)
     const ly = await fetchLayers(road.id)
-    setLayers(ly)
+    setAllLayers(ly)
   }
 
   return (
