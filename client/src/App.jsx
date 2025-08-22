@@ -62,10 +62,12 @@ export default function App() {
         startKm: Math.max(r.startKm, start) - start,
         endKm: Math.min(r.endKm, end) - start,
       }))
+      .sort((a, b) => a.startKm - b.startKm)
 
     const slicePosts = (arr = []) => arr
       .filter(p => p.sectionId === section.id)
       .map(p => ({ ...p, chainageKm: p.chainageKm - start }))
+      .sort((a, b) => a.chainageKm - b.chainageKm)
 
     if (allLayers) {
       setLayers({
