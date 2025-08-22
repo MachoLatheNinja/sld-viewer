@@ -45,22 +45,16 @@ function formatLRP(km, posts = []) {
   if (!posts.length) return formatLrpKm(km)
   const sorted = posts.slice().sort((a, b) => a.chainageKm - b.chainageKm)
   let prev = sorted[0]
-  let next = sorted[sorted.length - 1]
   for (const p of sorted) {
     if (p.chainageKm <= km) prev = p
-    if (p.chainageKm >= km) { next = p; break }
+    else break
   }
   const prevLrpKm = parseLrpKm(prev?.lrp)
-  const nextLrpKm = parseLrpKm(next?.lrp)
-  if (prevLrpKm != null && nextLrpKm != null && prev !== next) {
-    const span = Math.max(1e-9, next.chainageKm - prev.chainageKm)
-    const t = (km - prev.chainageKm) / span
-    const interp = prevLrpKm + t * (nextLrpKm - prevLrpKm)
-    return formatLrpKm(interp)
-  }
   if (prevLrpKm != null) {
-    const interp = prevLrpKm + (km - prev.chainageKm)
-    return formatLrpKm(interp)
+    const baseKm = Math.floor(prevLrpKm)
+    const baseOffset = (prevLrpKm - baseKm)
+    const offsetM = Math.round((km - prev.chainageKm + baseOffset) * 1000)
+    return `K${String(baseKm).padStart(4,'0')} + ${String(offsetM).padStart(3,'0')}`
   }
   return formatLrpKm(km)
 }
