@@ -28,8 +28,11 @@ const EPS = 1e-6
 function formatAADT(n){ return (n==null)? '' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') }
 
 function parseLrpKm(lrp) {
-  const m = /^K\s*(\d+)\s*\+\s*(\d+)/i.exec(lrp || '')
-  return m ? Number(m[1]) + Number(m[2]) / 1000 : null
+  const s = lrp || ''
+  let m = /^K\s*(\d+)\s*\+\s*(\d+)/i.exec(s)
+  if (m) return Number(m[1]) + Number(m[2]) / 1000
+  m = /^K?M?\s*(\d+)/i.exec(s)
+  return m ? Number(m[1]) : null
 }
 
 function formatLrpKm(kmVal) {
@@ -413,24 +416,35 @@ export default function SLDCanvasV2({
     }
   }
 
-  const valueAt = (key, km) => {
+  const bandValue = (key, r) => {
+    switch (key) {
+      case 'surface': return r.surface
+      case 'aadt': return formatAADT(r.aadt)
+      case 'status': return r.status
+      case 'quality': return r.quality
+      case 'lanes': return `${r.lanes} lanes`
+      case 'rowWidth': return `${r.rowWidthM} m`
+      case 'municipality': return r.name
+      case 'bridges': return r.name
+      default: return ''
+    }
+  }
+
+  const valuesAt = (key, km) => {
     const arr = bandArrayByKey(key)
-    for (const r of arr) {
+    for (let i = 0; i < arr.length; i++) {
+      const r = arr[i]
       if (km >= r.startKm - EPS && km <= r.endKm + EPS) {
-        switch (key) {
-          case 'surface': return r.surface
-          case 'aadt': return formatAADT(r.aadt)
-          case 'status': return r.status
-          case 'quality': return r.quality
-          case 'lanes': return `${r.lanes} lanes`
-          case 'rowWidth': return `${r.rowWidthM} m`
-          case 'municipality': return r.name
-          case 'bridges': return r.name
-          default: return ''
+        if (Math.abs(km - r.endKm) < EPS && arr[i + 1]) {
+          return { left: bandValue(key, r), right: bandValue(key, arr[i + 1]) }
         }
+        if (Math.abs(km - r.startKm) < EPS && arr[i - 1]) {
+          return { left: bandValue(key, arr[i - 1]), right: bandValue(key, r) }
+        }
+        return { center: bandValue(key, r) }
       }
     }
-    return ''
+    return {}
   }
 
   // hit seam/edge: for bridges, allow start & end edge handles; for others, only adjacent seams
@@ -587,26 +601,68 @@ export default function SLDCanvasV2({
           <>
             <div style={{ position:'absolute', top:0, bottom:0, left:hoverX, width:1, background:'#FFC107', pointerEvents:'none' }} />
             {layout.bandBoxes.map((b) => {
-              const v = valueAt(b.key, hoverKm)
-              if (!v) return null
-              return (
-                <div
-                  key={b.key}
-                  style={{
-                    position:'absolute',
-                    left:hoverX,
-                    top: b.y + b.h/2 - 4,
-                    transform:'translate(-50%, -50%)',
-                    background:'rgba(0,0,0,0.7)',
-                    color:'#fff',
-                    borderRadius:4,
-                    padding:'2px 4px',
-                    fontSize:11,
-                    pointerEvents:'none',
-                    whiteSpace:'nowrap'
-                  }}
-                >{v}</div>
-              )
+              const v = valuesAt(b.key, hoverKm)
+              if (v.center) {
+                return (
+                  <div
+                    key={b.key}
+                    style={{
+                      position:'absolute',
+                      left:hoverX,
+                      top: b.y + b.h/2 - 4,
+                      transform:'translate(-50%, -50%)',
+                      background:'rgba(0,0,0,0.7)',
+                      color:'#fff',
+                      borderRadius:4,
+                      padding:'2px 4px',
+                      fontSize:11,
+                      pointerEvents:'none',
+                      whiteSpace:'nowrap'
+                    }}
+                  >{v.center}</div>
+                )
+              }
+              if (v.left || v.right) {
+                return (
+                  <React.Fragment key={b.key}>
+                    {v.left && (
+                      <div
+                        style={{
+                          position:'absolute',
+                          left:hoverX,
+                          top: b.y + b.h/2 - 4,
+                          transform:'translate(-100%, -50%) translateX(-4px)',
+                          background:'rgba(0,0,0,0.7)',
+                          color:'#fff',
+                          borderRadius:4,
+                          padding:'2px 4px',
+                          fontSize:11,
+                          pointerEvents:'none',
+                          whiteSpace:'nowrap'
+                        }}
+                      >{v.left}</div>
+                    )}
+                    {v.right && (
+                      <div
+                        style={{
+                          position:'absolute',
+                          left:hoverX,
+                          top: b.y + b.h/2 - 4,
+                          transform:'translate(0, -50%) translateX(4px)',
+                          background:'rgba(0,0,0,0.7)',
+                          color:'#fff',
+                          borderRadius:4,
+                          padding:'2px 4px',
+                          fontSize:11,
+                          pointerEvents:'none',
+                          whiteSpace:'nowrap'
+                        }}
+                      >{v.right}</div>
+                    )}
+                  </React.Fragment>
+                )
+              }
+              return null
             })}
             <div
               style={{
