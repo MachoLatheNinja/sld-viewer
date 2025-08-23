@@ -3,7 +3,7 @@ import { fetchRoads, fetchLayers, moveBandSeam } from './api'
 import ControlBar from './components/ControlBar'
 import SLDCanvasV2 from './components/SLDCanvasV2'
 import { DEFAULT_BANDS } from './bands'
-import { parseLrpKm } from './lrp'
+import { lrpToChainageKm } from './lrp'
 
 const EPS = 1e-6
 
@@ -130,7 +130,7 @@ export default function App() {
   }, [guideKm, sectionId, sectionList])
 
   const onSearch = () => {
-    const kmVal = parseLrpKm(q)
+    const kmVal = lrpToChainageKm(q, allLayers?.kmPosts)
     if (kmVal == null) return
     const sec = sectionList.find(s => kmVal >= s.startKm && kmVal <= s.endKm)
     if (sec) {
