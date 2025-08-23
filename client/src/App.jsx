@@ -3,6 +3,7 @@ import { fetchRoads, fetchLayers, moveBandSeam } from './api'
 import ControlBar from './components/ControlBar'
 import SLDCanvasV2 from './components/SLDCanvasV2'
 import { DEFAULT_BANDS } from './bands'
+import { parseLrpKm } from './lrp'
 
 const EPS = 1e-6
 
@@ -19,14 +20,6 @@ function mergeRanges(arr = [], prop) {
     }
   }
   return out
-}
-
-function parseLrpKm(lrp) {
-  const s = (lrp || '').replace(/\s+/g, '').toUpperCase()
-  let m = /^K?M?(\d+)\+(\d+)$/.exec(s)
-  if (m) return Number(m[1]) + Number(m[2]) / 1000
-  m = /^K?M?(\d+)$/.exec(s)
-  return m ? Number(m[1]) : null
 }
 
 export default function App() {

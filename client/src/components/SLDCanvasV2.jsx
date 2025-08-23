@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { DEFAULT_BANDS } from '../bands'
+import { parseLrpKm } from '../lrp'
 
 const SURFACE_COLORS = { Asphalt:'#282828', Concrete:'#a1a1a1', Gravel:'#8d6e63' }
 const QUALITY_COLORS = { Poor:'#e53935', Fair:'#fb8c00', Good:'#43a047', Excellent:'#1e88e5' }
@@ -39,14 +40,6 @@ function laneColor(lanes) {
   const end = [0x01, 0x24, 0xA4]   // #0124A4
   const [r, g, b] = start.map((s, i) => Math.round(s + t * (end[i] - s)))
   return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`
-}
-
-function parseLrpKm(lrp) {
-  const s = lrp || ''
-  let m = /^K\s*(\d+)\s*\+\s*(\d+)/i.exec(s)
-  if (m) return Number(m[1]) + Number(m[2]) / 1000
-  m = /^K?M?\s*(\d+)/i.exec(s)
-  return m ? Number(m[1]) : null
 }
 
 function formatLrpKm(kmVal) {
