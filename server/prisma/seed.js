@@ -38,7 +38,7 @@ async function main() {
             },
             lanesBands: {
               create: [
-                { startM: 0, endM: 10000, lanes: 2, sideBias: "TOP" },
+                { startM: 0, endM: 10000, lanes: 2, sideBias: "LS" },
               ],
             },
             rowWidthBands: {
