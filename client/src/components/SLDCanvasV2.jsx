@@ -285,15 +285,29 @@ export default function SLDCanvasV2({
       const thickness = Math.max(18, lanes * (LANE_UNIT * 0.9))
       const yTop = centerY - thickness / 2
       ctx.strokeStyle = '#5d4037'
-      ctx.lineWidth = 2
-      const spacing = 30
-      for (let xi = x1 + spacing / 2; xi < x2; xi += spacing) {
-        ctx.beginPath()
-        ctx.moveTo(xi - 6, yTop)
-        ctx.lineTo(xi, yTop - 10)
-        ctx.lineTo(xi + 6, yTop)
-        ctx.stroke()
-      }
+      ctx.lineWidth = 4
+
+      // draw bridge symbol: two parallel lines with angled ends
+      const topY = yTop - 8
+      const bottomY = yTop + thickness + 8
+      const flare = 10
+
+      ctx.beginPath()
+      // horizontal deck lines
+      ctx.moveTo(x1, topY)
+      ctx.lineTo(x2, topY)
+      ctx.moveTo(x1, bottomY)
+      ctx.lineTo(x2, bottomY)
+      // angled extensions
+      ctx.moveTo(x1, topY)
+      ctx.lineTo(x1 - flare, topY - flare)
+      ctx.moveTo(x1, bottomY)
+      ctx.lineTo(x1 - flare, bottomY + flare)
+      ctx.moveTo(x2, topY)
+      ctx.lineTo(x2 + flare, topY - flare)
+      ctx.moveTo(x2, bottomY)
+      ctx.lineTo(x2 + flare, bottomY + flare)
+      ctx.stroke()
     }
 
         // KM labels / axis
