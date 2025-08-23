@@ -102,13 +102,13 @@ export default function App() {
   }, [sectionId, sectionList, allLayers])
 
   useEffect(() => {
-    if (!sectionId) return
+    if (!sectionId || guideKm != null) return
     const section = sectionList.find(s => s.id === sectionId)
     if (!section) return
     const length = section.endKm - section.startKm
     setFromKm(0)
     setToKm(length)
-  }, [sectionId, sectionList])
+  }, [sectionId, sectionList, guideKm])
 
   useEffect(() => {
     if (guideKm == null) return
@@ -134,16 +134,25 @@ export default function App() {
         const offsetKm = kmVal + first.chainageKm - (firstLrpKm ?? 0)
         const sec = sectionList.find(s => offsetKm >= s.startKm && offsetKm <= s.endKm)
         if (sec) {
-          setSectionId(sec.id)
           setGuideKm(offsetKm - sec.startKm)
+          setSectionId(sec.id)
           setShowGuide(true)
           return
         }
       }
     }
-    const r = await fetchRoads(q)
-    setRoads(r)
-    if (r.length) setRoad(r[0])
+  const r = await fetchRoads(q)
+  setRoads(r)
+  if (r.length) setRoad(r[0])
+  }
+
+  const toggleGuide = () => {
+    if (guideKm != null) {
+      setGuideKm(null)
+      setShowGuide(true)
+    } else {
+      setShowGuide(g => !g)
+    }
   }
 
   // ✅ Forward the optional extras (like { edge: 'start' } for bridges)
@@ -188,7 +197,7 @@ export default function App() {
           domain={domain}
           onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
           showGuide={showGuide}
-          onToggleGuide={()=>setShowGuide(g=>!g)}
+          onToggleGuide={toggleGuide}
         />
 
         <SLDCanvasV2
