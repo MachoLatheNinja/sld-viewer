@@ -133,7 +133,9 @@ export default function App() {
     const kmVal = parseLrpKm(q)
     if (kmVal == null) return
     const posts = allLayers?.kmPosts || []
-    const base = posts.length ? Math.min(...posts.map(p => p.chainageKm)) : 0
+    const sorted = posts.slice().sort((a, b) => a.chainageKm - b.chainageKm)
+    const first = sorted[0]
+    const base = first ? (parseLrpKm(first.lrp) ?? 0) - first.chainageKm : 0
     const roadKm = kmVal - base
     const sec = sectionList.find(s => roadKm >= s.startKm && roadKm <= s.endKm)
     if (sec) {
