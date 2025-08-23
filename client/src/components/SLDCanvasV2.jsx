@@ -97,6 +97,7 @@ export default function SLDCanvasV2({
   bands = DEFAULT_BANDS,
   onMoveSeam,        // (bandKey, leftId, rightId, km, extra={})
   showGuide,
+  guideKm,
 }) {
   const canvasRef = useRef(null)
   const [panX, setPanX] = useState(0)
@@ -111,7 +112,7 @@ export default function SLDCanvasV2({
   const fromKm = Math.max(0, domain?.fromKm ?? 0)
   const toKm   = Math.min(lengthKm, domain?.toKm ?? lengthKm)
 
-  useEffect(() => { if (!showGuide) setHoverKm(null) }, [showGuide])
+  useEffect(() => { if (!showGuide || guideKm != null) setHoverKm(null) }, [showGuide, guideKm])
 
   useEffect(()=>{
     const el = canvasRef.current; if(!el) return
@@ -713,7 +714,8 @@ export default function SLDCanvasV2({
     setHoverKm(null)
   }
 
-  const hoverX = hoverKm == null ? null : helpersRef.current.kmToX(hoverKm)
+  const activeKm = guideKm ?? (showGuide ? hoverKm : null)
+  const hoverX = activeKm == null ? null : helpersRef.current.kmToX(activeKm)
 
   return (
     <div style={{ border:'1px solid #e0e0e0', borderRadius:8, background:'#fff', padding:8 }}>
@@ -732,11 +734,11 @@ export default function SLDCanvasV2({
           onMouseUp={onMouseUp}
           onMouseLeave={onMouseLeave}
         />
-        {showGuide && hoverKm != null && (
+        {activeKm != null && (
           <>
             <div style={{ position:'absolute', top:0, bottom:0, left:hoverX, width:1, background:'#FFC107', pointerEvents:'none' }} />
             {layout.bandBoxes.map((b) => {
-              const v = valuesAt(b.key, hoverKm)
+              const v = valuesAt(b.key, activeKm)
               if (v.center) {
                 return (
                   <div
@@ -814,8 +816,8 @@ export default function SLDCanvasV2({
                 textAlign:'center'
               }}
             >
-              <div>{formatLRP(hoverKm, layers?.kmPosts)}</div>
-              <div>{formatChainage(Math.round(hoverKm * 1000))}</div>
+              <div>{formatLRP(activeKm, layers?.kmPosts)}</div>
+              <div>{formatChainage(Math.round(activeKm * 1000))}</div>
             </div>
           </>
         )}

@@ -21,6 +21,14 @@ function mergeRanges(arr = [], prop) {
   return out
 }
 
+function parseLrpKm(lrp) {
+  const s = lrp || ''
+  let m = /^K\s*(\d+)\s*\+\s*(\d+)/i.exec(s)
+  if (m) return Number(m[1]) + Number(m[2]) / 1000
+  m = /^K?M?\s*(\d+)/i.exec(s)
+  return m ? Number(m[1]) : null
+}
+
 export default function App() {
   const [roads, setRoads] = useState([])
   const [q, setQ] = useState('')
@@ -29,6 +37,8 @@ export default function App() {
   const [sectionId, setSectionId] = useState(null)
   const [allLayers, setAllLayers] = useState(null)
   const [layers, setLayers] = useState(null)
+  const [loc, setLoc] = useState('')
+  const [guideKm, setGuideKm] = useState(null)
 
   const [fromKm, setFromKm] = useState(0)
   const [toKm, setToKm] = useState(10)
@@ -108,10 +118,30 @@ export default function App() {
     setToKm(length)
   }, [sectionId, sectionList])
 
+  useEffect(() => {
+    if (guideKm == null) return
+    const section = sectionList.find(s => s.id === sectionId)
+    if (!section) return
+    const length = section.endKm - section.startKm
+    const from = Math.max(0, guideKm - 0.5)
+    const to = Math.min(length, guideKm + 0.5)
+    setFromKm(from)
+    setToKm(to)
+  }, [guideKm, sectionId, sectionList])
+
   const onSearch = async () => {
     const r = await fetchRoads(q)
     setRoads(r)
     if (r.length) setRoad(r[0])
+  }
+
+  const gotoChainage = () => {
+    const kmVal = parseLrpKm(loc)
+    if (kmVal == null) return
+    const sec = sectionList.find(s => kmVal >= s.startKm && kmVal <= s.endKm)
+    if (!sec) return
+    setSectionId(sec.id)
+    setGuideKm(kmVal - sec.startKm)
   }
 
   // ✅ Forward the optional extras (like { edge: 'start' } for bridges)
@@ -148,6 +178,14 @@ export default function App() {
             >
               {sectionList.map(s => <option key={s.id} value={s.id}>{s.id}</option>)}
             </select>
+            <input
+              value={loc}
+              onChange={(e)=>setLoc(e.target.value)}
+              placeholder="Go to…"
+              onKeyDown={(e)=>{ if(e.key==='Enter') gotoChainage() }}
+              style={{ width: 120 }}
+            />
+            <button onClick={gotoChainage}>Go</button>
           </div>
         </div>
 
@@ -167,6 +205,7 @@ export default function App() {
           bands={bands}
           onMoveSeam={handleMoveSeam}
           showGuide={showGuide}
+          guideKm={guideKm}
         />
       </div>
     </div>
