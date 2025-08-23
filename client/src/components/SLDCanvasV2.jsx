@@ -189,10 +189,19 @@ export default function SLDCanvasV2({
       ctx.textBaseline = 'alphabetic'
     }
 
-  const lanesAt = (km) => {
+  const biasIsTop = (bias) => {
+    const b = String(bias).toUpperCase()
+    return b === 'L/S' || b === 'LS' || b === 'TOP'
+  }
+
+  const laneInfoAt = (km) => {
     const arr = layers?.lanes || []
-    for (const r of arr) if (km >= r.startKm - EPS && km <= r.endKm + EPS) return Math.max(1, r.lanes)
-    return 2
+    for (const r of arr) {
+      if (km >= r.startKm - EPS && km <= r.endKm + EPS) {
+        return { lanes: Math.max(1, r.lanes), sideBias: r.sideBias }
+      }
+    }
+    return { lanes: 2, sideBias: 'L/S' }
   }
 
   const surfaceAt = (km) => {
@@ -239,10 +248,13 @@ export default function SLDCanvasV2({
       const startKm = kmPoints[i - 1]
       const endKm = kmPoints[i]
       const midKm = (startKm + endKm) / 2
-      const lanes = lanesAt(midKm)
+      const { lanes, sideBias } = laneInfoAt(midKm)
       const thickness = Math.max(18, lanes * (LANE_UNIT * 0.9))
-      const yTop = centerY - thickness / 2
-      const yBot = centerY + thickness / 2
+      const laneW = thickness / lanes
+      const lanesTop = biasIsTop(sideBias) ? Math.ceil(lanes / 2) : Math.floor(lanes / 2)
+      const lanesBottom = lanes - lanesTop
+      const yTop = centerY - laneW * lanesTop
+      const yBot = centerY + laneW * lanesBottom
       const surf = surfaceAt(midKm)
       const color = SURFACE_COLORS[surf] || '#707070'
       const x1 = kmToX(startKm)
@@ -267,11 +279,12 @@ export default function SLDCanvasV2({
       const startKm = kmPoints[i - 1]
       const endKm = kmPoints[i]
       const midKm = (startKm + endKm) / 2
-      const lanes = lanesAt(midKm)
+      const { lanes, sideBias } = laneInfoAt(midKm)
       if (lanes > 2) {
         const thickness = Math.max(18, lanes * (LANE_UNIT * 0.9))
-        const yTop = centerY - thickness / 2
         const laneW = thickness / lanes
+        const lanesTop = biasIsTop(sideBias) ? Math.ceil(lanes / 2) : Math.floor(lanes / 2)
+        const yTop = centerY - laneW * lanesTop
         const x1 = kmToX(startKm)
         const x2 = kmToX(endKm)
         for (let lane = 1; lane < lanes; lane++) {
@@ -291,9 +304,11 @@ export default function SLDCanvasV2({
       const x1 = kmToX(startKm)
       const x2 = kmToX(endKm)
       const midKm = (startKm + endKm) / 2
-      const lanes = lanesAt(midKm)
+      const { lanes, sideBias } = laneInfoAt(midKm)
       const thickness = Math.max(18, lanes * (LANE_UNIT * 0.9))
-      const yTop = centerY - thickness / 2
+      const laneW = thickness / lanes
+      const lanesTop = biasIsTop(sideBias) ? Math.ceil(lanes / 2) : Math.floor(lanes / 2)
+      const yTop = centerY - laneW * lanesTop
       ctx.strokeStyle = '#5d4037'
       ctx.lineWidth = 4
 
