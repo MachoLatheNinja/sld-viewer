@@ -132,9 +132,12 @@ export default function App() {
   const onSearch = async () => {
     const kmVal = parseLrpKm(q)
     if (kmVal != null) {
-      const sec = sectionList.find(s => kmVal >= s.startKm && kmVal <= s.endKm)
+      const posts = allLayers?.kmPosts || []
+      const base = posts.length ? Math.min(...posts.map(p => p.chainageKm)) : 0
+      const roadKm = kmVal - base
+      const sec = sectionList.find(s => roadKm >= s.startKm && roadKm <= s.endKm)
       if (sec) {
-        setGuideKm(kmVal - sec.startKm)
+        setGuideKm(roadKm - sec.startKm)
         setSectionId(sec.id)
         setShowGuide(true)
         return
