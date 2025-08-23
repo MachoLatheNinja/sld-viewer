@@ -27,6 +27,10 @@ const EPS = 1e-6
 
 function formatAADT(n){ return (n==null)? '' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') }
 
+function formatChainage(m){
+  return (m==null)? '' : String(m).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+}
+
 function laneColor(lanes) {
   const min = 2
   const max = 10
@@ -789,9 +793,12 @@ export default function SLDCanvasV2({
                 padding:'2px 4px',
                 fontSize:11,
                 pointerEvents:'none',
-                whiteSpace:'nowrap'
+                textAlign:'center'
               }}
-            >{formatLRP(hoverKm, layers?.kmPosts)}</div>
+            >
+              <div>{formatLRP(hoverKm, layers?.kmPosts)}</div>
+              <div>{formatChainage(Math.round(hoverKm * 1000))}</div>
+            </div>
           </>
         )}
       </div>
