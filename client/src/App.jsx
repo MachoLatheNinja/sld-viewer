@@ -132,26 +132,17 @@ export default function App() {
   const onSearch = async () => {
     const kmVal = parseLrpKm(q)
     if (kmVal != null) {
-      // Translate the absolute LRP to a road-relative kilometer using the first km post
-      const posts = (allLayers?.kmPosts || [])
-        .slice()
-        .sort((a, b) => a.chainageKm - b.chainageKm)
-      const first = posts[0]
-      if (first) {
-        const firstLrpKm = parseLrpKm(first.lrp)
-        const offsetKm = kmVal + first.chainageKm - (firstLrpKm ?? 0)
-        const sec = sectionList.find(s => offsetKm >= s.startKm && offsetKm <= s.endKm)
-        if (sec) {
-          setGuideKm(offsetKm - sec.startKm)
-          setSectionId(sec.id)
-          setShowGuide(true)
-          return
-        }
+      const sec = sectionList.find(s => kmVal >= s.startKm && kmVal <= s.endKm)
+      if (sec) {
+        setGuideKm(kmVal - sec.startKm)
+        setSectionId(sec.id)
+        setShowGuide(true)
+        return
       }
     }
-  const r = await fetchRoads(q)
-  setRoads(r)
-  if (r.length) setRoad(r[0])
+    const r = await fetchRoads(q)
+    setRoads(r)
+    if (r.length) setRoad(r[0])
   }
 
   const toggleGuide = () => {
