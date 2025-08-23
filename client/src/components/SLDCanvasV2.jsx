@@ -552,13 +552,31 @@ export default function SLDCanvasV2({
     for (let i = 0; i < arr.length; i++) {
       const r = arr[i]
       if (km >= r.startKm - EPS && km <= r.endKm + EPS) {
-        if (Math.abs(km - r.endKm) < EPS && arr[i + 1]) {
-          return { left: bandValue(key, r), right: bandValue(key, arr[i + 1]) }
+        if (key === 'bridges') {
+          if (Math.abs(km - r.startKm) < EPS) {
+            const prev = arr[i - 1]
+            if (prev && Math.abs(prev.endKm - r.startKm) < EPS) {
+              return { left: bandValue(key, prev), right: bandValue(key, r) }
+            }
+            return { right: bandValue(key, r) }
+          }
+          if (Math.abs(km - r.endKm) < EPS) {
+            const next = arr[i + 1]
+            if (next && Math.abs(next.startKm - r.endKm) < EPS) {
+              return { left: bandValue(key, r), right: bandValue(key, next) }
+            }
+            return { left: bandValue(key, r) }
+          }
+          return { center: bandValue(key, r) }
+        } else {
+          if (Math.abs(km - r.endKm) < EPS && arr[i + 1]) {
+            return { left: bandValue(key, r), right: bandValue(key, arr[i + 1]) }
+          }
+          if (Math.abs(km - r.startKm) < EPS && arr[i - 1]) {
+            return { left: bandValue(key, arr[i - 1]), right: bandValue(key, r) }
+          }
+          return { center: bandValue(key, r) }
         }
-        if (Math.abs(km - r.startKm) < EPS && arr[i - 1]) {
-          return { left: bandValue(key, arr[i - 1]), right: bandValue(key, r) }
-        }
-        return { center: bandValue(key, r) }
       }
     }
     return {}
