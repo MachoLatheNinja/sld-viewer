@@ -21,6 +21,14 @@ function mergeRanges(arr = [], prop) {
   return out
 }
 
+function parseLrpKm(lrp) {
+  const s = (lrp || '').replace(/\s+/g, '').toUpperCase()
+  let m = /^K?M?(\d+)\+(\d+)$/.exec(s)
+  if (m) return Number(m[1]) + Number(m[2]) / 1000
+  m = /^K?M?(\d+)$/.exec(s)
+  return m ? Number(m[1]) : null
+}
+
 export default function App() {
   const [roads, setRoads] = useState([])
   const [q, setQ] = useState('')
@@ -29,6 +37,7 @@ export default function App() {
   const [sectionId, setSectionId] = useState(null)
   const [allLayers, setAllLayers] = useState(null)
   const [layers, setLayers] = useState(null)
+  const [guideKm, setGuideKm] = useState(null)
 
   const [fromKm, setFromKm] = useState(0)
   const [toKm, setToKm] = useState(10)
@@ -108,7 +117,27 @@ export default function App() {
     setToKm(length)
   }, [sectionId, sectionList])
 
+  useEffect(() => {
+    if (guideKm == null) return
+    const section = sectionList.find(s => s.id === sectionId)
+    if (!section) return
+    const length = section.endKm - section.startKm
+    const from = Math.max(0, guideKm - 0.5)
+    const to = Math.min(length, guideKm + 0.5)
+    setFromKm(from)
+    setToKm(to)
+  }, [guideKm, sectionId, sectionList])
+
   const onSearch = async () => {
+    const kmVal = parseLrpKm(q)
+    if (kmVal != null) {
+      const sec = sectionList.find(s => kmVal >= s.startKm && kmVal <= s.endKm)
+      if (!sec) return
+      setSectionId(sec.id)
+      setGuideKm(kmVal - sec.startKm)
+      setShowGuide(true)
+      return
+    }
     const r = await fetchRoads(q)
     setRoads(r)
     if (r.length) setRoad(r[0])
@@ -131,7 +160,7 @@ export default function App() {
             <input
               value={q}
               onChange={(e)=>setQ(e.target.value)}
-              placeholder="Search roads…"
+              placeholder="Search roads or chainage…"
               onKeyDown={(e)=>{ if(e.key==='Enter') onSearch() }}
               style={{ width: 260 }}
             />
@@ -167,6 +196,7 @@ export default function App() {
           bands={bands}
           onMoveSeam={handleMoveSeam}
           showGuide={showGuide}
+          guideKm={guideKm}
         />
       </div>
     </div>
