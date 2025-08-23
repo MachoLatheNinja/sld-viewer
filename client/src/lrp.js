@@ -15,6 +15,7 @@ export function lrpToChainageKm(lrp, posts = []) {
   const first = sorted[0];
   const baseKm = parseLrpKm(first?.lrp);
   if (baseKm == null) return kmVal;
-  const offset = first.chainageKm - baseKm;
+  // Shift baseline forward by 500 m to align searches
+  const offset = first.chainageKm - baseKm + 0.5;
   return kmVal + offset;
 }
