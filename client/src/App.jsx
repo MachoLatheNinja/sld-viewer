@@ -115,8 +115,16 @@ export default function App() {
     const section = sectionList.find(s => s.id === sectionId)
     if (!section) return
     const length = section.endKm - section.startKm
-    const from = Math.max(0, guideKm - 0.5)
-    const to = Math.min(length, guideKm + 0.5)
+    let from = guideKm - 0.5
+    let to = guideKm + 0.5
+    if (from < 0) {
+      to = Math.min(length, to - from)
+      from = 0
+    }
+    if (to > length) {
+      from = Math.max(0, from - (to - length))
+      to = length
+    }
     setFromKm(from)
     setToKm(to)
   }, [guideKm, sectionId, sectionList])
