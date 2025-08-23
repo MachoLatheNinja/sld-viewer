@@ -124,12 +124,22 @@ export default function App() {
   const onSearch = async () => {
     const kmVal = parseLrpKm(q)
     if (kmVal != null) {
-      const sec = sectionList.find(s => kmVal >= s.startKm && kmVal <= s.endKm)
-      if (!sec) return
-      setSectionId(sec.id)
-      setGuideKm(kmVal - sec.startKm)
-      setShowGuide(true)
-      return
+      // Translate the absolute LRP to a road-relative kilometer using the first km post
+      const posts = (allLayers?.kmPosts || [])
+        .slice()
+        .sort((a, b) => a.chainageKm - b.chainageKm)
+      const first = posts[0]
+      if (first) {
+        const firstLrpKm = parseLrpKm(first.lrp)
+        const offsetKm = kmVal + first.chainageKm - (firstLrpKm ?? 0)
+        const sec = sectionList.find(s => offsetKm >= s.startKm && offsetKm <= s.endKm)
+        if (sec) {
+          setSectionId(sec.id)
+          setGuideKm(offsetKm - sec.startKm)
+          setShowGuide(true)
+          return
+        }
+      }
     }
     const r = await fetchRoads(q)
     setRoads(r)
