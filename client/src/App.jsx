@@ -4,6 +4,23 @@ import ControlBar from './components/ControlBar'
 import SLDCanvasV2 from './components/SLDCanvasV2'
 import { DEFAULT_BANDS } from './bands'
 
+const EPS = 1e-6
+
+function mergeRanges(arr = [], prop) {
+  if (!arr.length) return []
+  const out = [{ ...arr[0] }]
+  for (let i = 1; i < arr.length; i++) {
+    const prev = out[out.length - 1]
+    const cur = arr[i]
+    if (prev[prop] === cur[prop] && Math.abs(prev.endKm - cur.startKm) < EPS) {
+      prev.endKm = cur.endKm
+    } else {
+      out.push({ ...cur })
+    }
+  }
+  return out
+}
+
 export default function App() {
   const [roads, setRoads] = useState([])
   const [q, setQ] = useState('')
@@ -69,13 +86,13 @@ export default function App() {
 
     if (allLayers) {
       setLayers({
-        surface: slice(allLayers.surface),
-        aadt: slice(allLayers.aadt),
-        status: slice(allLayers.status),
-        quality: slice(allLayers.quality),
-        lanes: slice(allLayers.lanes),
-        rowWidth: slice(allLayers.rowWidth),
-        municipality: slice(allLayers.municipality),
+        surface: mergeRanges(slice(allLayers.surface), 'surface'),
+        aadt: mergeRanges(slice(allLayers.aadt), 'aadt'),
+        status: mergeRanges(slice(allLayers.status), 'status'),
+        quality: mergeRanges(slice(allLayers.quality), 'quality'),
+        lanes: mergeRanges(slice(allLayers.lanes), 'lanes'),
+        rowWidth: mergeRanges(slice(allLayers.rowWidth), 'rowWidthM'),
+        municipality: mergeRanges(slice(allLayers.municipality), 'name'),
         bridges: slice(allLayers.bridges),
         kmPosts: slicePosts(allLayers.kmPosts),
       })
