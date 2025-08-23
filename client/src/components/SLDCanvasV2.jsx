@@ -713,7 +713,13 @@ export default function SLDCanvasV2({
   }
 
   const activeKm = guideKm ?? (showGuide ? hoverKm : null)
-  const hoverX = activeKm == null ? null : helpersRef.current.kmToX(activeKm)
+  // Use current pan and zoom state to compute the guide position directly.
+  // `helpersRef` is updated asynchronously after drawing, which caused
+  // the guide to render at a stale offset until the user moved the mouse.
+  // Deriving the X coordinate from `panX` and `zoom` keeps it in sync
+  // immediately when a search or domain change occurs.
+  const hoverX =
+    activeKm == null ? null : LEFT_PAD + panX + activeKm * zoom
 
   return (
     <div style={{ border:'1px solid #e0e0e0', borderRadius:8, background:'#fff', padding:8 }}>
