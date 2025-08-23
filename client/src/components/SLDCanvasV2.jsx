@@ -60,15 +60,20 @@ function formatLRP(km, posts = []) {
   const prevLrpKm = parseLrpKm(prev?.lrp)
   const nextLrpKm = parseLrpKm(next?.lrp)
 
-  // When km lies between two known posts, keep the kilometer label from
-  // the previous post and simply accumulate the extra meters. This avoids
-  // rolling over to the next kilometer when the distance between posts
-  // exceeds 1000 m.
-  if (prev.chainageKm <= km && km < next.chainageKm && prevLrpKm != null) {
-    const baseKm = Math.floor(prevLrpKm)
-    const baseOffsetM = (prevLrpKm - baseKm) * 1000
-    const offsetM = Math.round(baseOffsetM + (km - prev.chainageKm) * 1000)
-    return `K${String(baseKm).padStart(4,'0')} + ${String(offsetM).padStart(3,'0')}`
+  if (
+    prev.chainageKm <= km &&
+    km < next.chainageKm &&
+    prevLrpKm != null &&
+    nextLrpKm != null
+  ) {
+    const gapM = (next.chainageKm - prev.chainageKm) * 1000
+    // Only suppress rolling over when the gap between posts exceeds 1 km.
+    if (gapM > 1000 + EPS) {
+      const baseKm = Math.floor(prevLrpKm)
+      const baseOffsetM = (prevLrpKm - baseKm) * 1000
+      const offsetM = Math.round(baseOffsetM + (km - prev.chainageKm) * 1000)
+      return `K${String(baseKm).padStart(4,'0')} + ${String(offsetM).padStart(3,'0')}`
+    }
   }
 
   if (prev.chainageKm <= km && prevLrpKm != null) {
@@ -708,7 +713,13 @@ export default function SLDCanvasV2({
   }
 
   const activeKm = guideKm ?? (showGuide ? hoverKm : null)
-  const hoverX = activeKm == null ? null : helpersRef.current.kmToX(activeKm)
+  // Use current pan and zoom state to compute the guide position directly.
+  // `helpersRef` is updated asynchronously after drawing, which caused
+  // the guide to render at a stale offset until the user moved the mouse.
+  // Deriving the X coordinate from `panX` and `zoom` keeps it in sync
+  // immediately when a search or domain change occurs.
+  const hoverX =
+    activeKm == null ? null : LEFT_PAD + panX + activeKm * zoom
 
   return (
     <div style={{ border:'1px solid #e0e0e0', borderRadius:8, background:'#fff', padding:8 }}>
