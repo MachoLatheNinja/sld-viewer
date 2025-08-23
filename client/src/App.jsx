@@ -3,6 +3,7 @@ import { fetchRoads, fetchLayers, moveBandSeam } from './api'
 import ControlBar from './components/ControlBar'
 import SLDCanvasV2 from './components/SLDCanvasV2'
 import { DEFAULT_BANDS } from './bands'
+import { lrpToChainageKm } from './lrp'
 
 const EPS = 1e-6
 
@@ -29,6 +30,7 @@ export default function App() {
   const [sectionId, setSectionId] = useState(null)
   const [allLayers, setAllLayers] = useState(null)
   const [layers, setLayers] = useState(null)
+  const [guideKm, setGuideKm] = useState(null)
 
   const [fromKm, setFromKm] = useState(0)
   const [toKm, setToKm] = useState(10)
@@ -100,18 +102,51 @@ export default function App() {
   }, [sectionId, sectionList, allLayers])
 
   useEffect(() => {
-    if (!sectionId) return
+    if (!sectionId || guideKm != null) return
     const section = sectionList.find(s => s.id === sectionId)
     if (!section) return
     const length = section.endKm - section.startKm
     setFromKm(0)
     setToKm(length)
-  }, [sectionId, sectionList])
+  }, [sectionId, sectionList, guideKm])
 
-  const onSearch = async () => {
-    const r = await fetchRoads(q)
-    setRoads(r)
-    if (r.length) setRoad(r[0])
+  useEffect(() => {
+    if (guideKm == null) return
+    const section = sectionList.find(s => s.id === sectionId)
+    if (!section) return
+    const length = section.endKm - section.startKm
+    let from = guideKm - 0.5
+    let to = guideKm + 0.5
+    if (from < 0) {
+      to = Math.min(length, to - from)
+      from = 0
+    }
+    if (to > length) {
+      from = Math.max(0, from - (to - length))
+      to = length
+    }
+    setFromKm(from)
+    setToKm(to)
+  }, [guideKm, sectionId, sectionList])
+
+  const onSearch = () => {
+    const kmVal = lrpToChainageKm(q, allLayers?.kmPosts)
+    if (kmVal == null) return
+    const sec = sectionList.find(s => kmVal >= s.startKm && kmVal <= s.endKm)
+    if (sec) {
+      setGuideKm(kmVal - sec.startKm)
+      setSectionId(sec.id)
+      setShowGuide(true)
+    }
+  }
+
+  const toggleGuide = () => {
+    if (guideKm != null) {
+      setGuideKm(null)
+      setShowGuide(true)
+    } else {
+      setShowGuide(g => !g)
+    }
   }
 
   // ✅ Forward the optional extras (like { edge: 'start' } for bridges)
@@ -131,7 +166,7 @@ export default function App() {
             <input
               value={q}
               onChange={(e)=>setQ(e.target.value)}
-              placeholder="Search roads…"
+              placeholder="Search chainage…"
               onKeyDown={(e)=>{ if(e.key==='Enter') onSearch() }}
               style={{ width: 260 }}
             />
@@ -156,7 +191,7 @@ export default function App() {
           domain={domain}
           onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
           showGuide={showGuide}
-          onToggleGuide={()=>setShowGuide(g=>!g)}
+          onToggleGuide={toggleGuide}
         />
 
         <SLDCanvasV2
@@ -167,6 +202,7 @@ export default function App() {
           bands={bands}
           onMoveSeam={handleMoveSeam}
           showGuide={showGuide}
+          guideKm={guideKm}
         />
       </div>
     </div>

@@ -108,8 +108,8 @@ model QualityBand {
 
 // Which side gets the extra lane when LanesBand.lanes is odd
 enum SideBias {
-  TOP
-  BOTTOM
+  LS @map("L/S")
+  RS @map("R/S")
 }
 
 model LanesBand {
@@ -118,7 +118,7 @@ model LanesBand {
   startM    Float
   endM      Float
   lanes     Int
-  sideBias  SideBias @default(TOP)
+  sideBias  SideBias @default(LS)
   section   Section  @relation(fields: [sectionId], references: [id])
 
   @@index([sectionId, startM, endM])
