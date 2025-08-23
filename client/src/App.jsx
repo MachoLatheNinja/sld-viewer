@@ -129,23 +129,18 @@ export default function App() {
     setToKm(to)
   }, [guideKm, sectionId, sectionList])
 
-  const onSearch = async () => {
+  const onSearch = () => {
     const kmVal = parseLrpKm(q)
-    if (kmVal != null) {
-      const posts = allLayers?.kmPosts || []
-      const base = posts.length ? Math.min(...posts.map(p => p.chainageKm)) : 0
-      const roadKm = kmVal - base
-      const sec = sectionList.find(s => roadKm >= s.startKm && roadKm <= s.endKm)
-      if (sec) {
-        setGuideKm(roadKm - sec.startKm)
-        setSectionId(sec.id)
-        setShowGuide(true)
-        return
-      }
+    if (kmVal == null) return
+    const posts = allLayers?.kmPosts || []
+    const base = posts.length ? Math.min(...posts.map(p => p.chainageKm)) : 0
+    const roadKm = kmVal - base
+    const sec = sectionList.find(s => roadKm >= s.startKm && roadKm <= s.endKm)
+    if (sec) {
+      setGuideKm(roadKm - sec.startKm)
+      setSectionId(sec.id)
+      setShowGuide(true)
     }
-    const r = await fetchRoads(q)
-    setRoads(r)
-    if (r.length) setRoad(r[0])
   }
 
   const toggleGuide = () => {
@@ -174,7 +169,7 @@ export default function App() {
             <input
               value={q}
               onChange={(e)=>setQ(e.target.value)}
-              placeholder="Search roads or chainage…"
+              placeholder="Search chainage…"
               onKeyDown={(e)=>{ if(e.key==='Enter') onSearch() }}
               style={{ width: 260 }}
             />
