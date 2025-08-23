@@ -27,6 +27,16 @@ const EPS = 1e-6
 
 function formatAADT(n){ return (n==null)? '' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') }
 
+function laneColor(lanes) {
+  const min = 2
+  const max = 10
+  const t = Math.min(1, Math.max(0, (lanes - min) / (max - min)))
+  const start = [0xA9, 0xD6, 0xE5] // #A9D6E5
+  const end = [0x01, 0x24, 0xA4]   // #0124A4
+  const [r, g, b] = start.map((s, i) => Math.round(s + t * (end[i] - s)))
+  return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`
+}
+
 function parseLrpKm(lrp) {
   const s = lrp || ''
   let m = /^K\s*(\d+)\s*\+\s*(\d+)/i.exec(s)
@@ -450,7 +460,7 @@ export default function SLDCanvasV2({
           drawRanges(box, layers?.rowWidth, () => '#1565c0', r => `${r.rowWidthM} m`)
           break
         case 'lanes':
-          drawRanges(box, layers?.lanes, () => '#4e342e', r => `${r.lanes} lanes`)
+          drawRanges(box, layers?.lanes, r => laneColor(r.lanes), r => `${r.lanes} lanes`)
           break
         case 'municipality':
           drawRanges(box, layers?.municipality, () => '#00796b', r => r.name)
