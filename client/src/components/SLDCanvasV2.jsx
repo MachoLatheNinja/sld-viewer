@@ -293,19 +293,15 @@ export default function SLDCanvasV2({
       const flare = 10
 
       ctx.beginPath()
-      // horizontal deck lines
-      ctx.moveTo(x1, topY)
+      // top deck with flared ends
+      ctx.moveTo(x1 - flare, topY - flare)
+      ctx.lineTo(x1, topY)
       ctx.lineTo(x2, topY)
-      ctx.moveTo(x1, bottomY)
-      ctx.lineTo(x2, bottomY)
-      // angled extensions
-      ctx.moveTo(x1, topY)
-      ctx.lineTo(x1 - flare, topY - flare)
-      ctx.moveTo(x1, bottomY)
-      ctx.lineTo(x1 - flare, bottomY + flare)
-      ctx.moveTo(x2, topY)
       ctx.lineTo(x2 + flare, topY - flare)
-      ctx.moveTo(x2, bottomY)
+      // bottom deck with flared ends
+      ctx.moveTo(x1 - flare, bottomY + flare)
+      ctx.lineTo(x1, bottomY)
+      ctx.lineTo(x2, bottomY)
       ctx.lineTo(x2 + flare, bottomY + flare)
       ctx.stroke()
     }
