@@ -48,6 +48,7 @@ model Section {
   municipalityBands MunicipalityBand[]
   qualityBands      QualityBand[]
   rowWidthBands     RowWidthBand[]
+  carriagewayWidthBands CarriagewayWidthBand[]
   road              Road               @relation(fields: [roadId], references: [id])
   statusBands       StatusBand[]
   surfaceBands      SurfaceBand[]
@@ -119,6 +120,17 @@ model RowWidthBand {
   startM    Float
   endM      Float
   rowWidthM Int
+  section   Section @relation(fields: [sectionId], references: [id], onDelete: NoAction)
+
+  @@index([sectionId, startM, endM])
+}
+
+model CarriagewayWidthBand {
+  id        Int     @id @default(autoincrement())
+  sectionId String  @map("section_id")
+  startM    Float
+  endM      Float
+  carriagewayWidthM Int
   section   Section @relation(fields: [sectionId], references: [id], onDelete: NoAction)
 
   @@index([sectionId, startM, endM])

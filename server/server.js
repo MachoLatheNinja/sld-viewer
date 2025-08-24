@@ -22,6 +22,7 @@ const BAND_META = {
   quality:      { client: (tx)=>tx.qualityBand,      valueField: 'quality'    },
   lanes:        { client: (tx)=>tx.lanesBand,        valueField: 'lanes'      },
   rowWidth:     { client: (tx)=>tx.rowWidthBand,     valueField: 'rowWidthM'  },
+  carriagewayWidth: { client: (tx)=>tx.carriagewayWidthBand, valueField: 'carriagewayWidthM' },
   municipality: { client: (tx)=>tx.municipalityBand, valueField: 'name'       },
   bridges:      { client: (tx)=>tx.bridgeBand,       valueField: 'name'       },
 }
@@ -58,7 +59,7 @@ app.get('/api/roads/:id/layers', async (req, res) => {
   const sectionIds = sections.map(s => s.id)
 
   const [
-    surface, aadt, status, quality, lanes, rowWidth, municipality, bridges, kmPosts
+    surface, aadt, status, quality, lanes, rowWidth, carriagewayWidth, municipality, bridges, kmPosts
   ] = await Promise.all([
     prisma.surfaceBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
     prisma.aadtBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
@@ -66,12 +67,13 @@ app.get('/api/roads/:id/layers', async (req, res) => {
     prisma.qualityBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
     prisma.lanesBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
     prisma.rowWidthBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
+    prisma.carriagewayWidthBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
     prisma.municipalityBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
     prisma.bridgeBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
     prisma.kmPost.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ chainageM:'asc' }, { id:'asc' }] }),
   ])
 
-  res.json({ road, sections, surface, aadt, status, quality, lanes, rowWidth, municipality, bridges, kmPosts })
+  res.json({ road, sections, surface, aadt, status, quality, lanes, rowWidth, carriagewayWidth, municipality, bridges, kmPosts })
 })
 
 /**

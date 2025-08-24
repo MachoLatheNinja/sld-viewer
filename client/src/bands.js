@@ -4,6 +4,7 @@ export const DEFAULT_BANDS = [
   { key: 'status',       title: 'Status',             height: 28 },
   { key: 'quality',      title: 'Condition',          height: 28 },
   { key: 'rowWidth',     title: 'ROW Width (m)',      height: 28 },
+  { key: 'carriagewayWidth', title: 'Carriageway Width (m)', height: 28 },
   { key: 'lanes',        title: 'Number of Lanes',    height: 28 },
   { key: 'municipality', title: 'Municipality',       height: 28 },
   { key: 'bridges',      title: 'Bridges',            height: 24 },

@@ -46,6 +46,11 @@ async function main() {
                 { startM: 0, endM: 10000, rowWidthM: 20 },
               ],
             },
+            carriagewayWidthBands: {
+              create: [
+                { startM: 0, endM: 10000, carriagewayWidthM: 7 },
+              ],
+            },
             municipalityBands: {
               create: [
                 { startM: 0, endM: 5000, name: "Lucena City" },

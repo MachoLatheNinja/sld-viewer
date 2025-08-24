@@ -68,6 +68,15 @@ function fillDiagonalStripes(ctx, x, y, w, h, light, dark, pitch = 20) {
   ctx.restore()
 }
 
+function fillCAAC(ctx, x, y, w, h) {
+  const q = h / 4
+  ctx.fillStyle = '#a1a1a1'
+  ctx.fillRect(x, y, w, q)
+  ctx.fillRect(x, y + 3 * q, w, q)
+  ctx.fillStyle = '#282828'
+  ctx.fillRect(x, y + q, w, h - 2 * q)
+}
+
 
 export default function SLDCanvasV2({
   road,
@@ -431,8 +440,15 @@ export default function SLDCanvasV2({
         const x2 = Math.round(kmToX(Math.min(r.endKm, toKm)))
         const ww = Math.max(1, x2 - x1)
         const fill = colorFn(r)
-        if (fill && typeof fill === 'object' && fill.type === 'stripes') {
-          fillDiagonalStripes(ctx, x1, trackY, ww, trackH, fill.light, fill.dark, fill.pitch)
+        if (fill && typeof fill === 'object') {
+          if (fill.type === 'stripes') {
+            fillDiagonalStripes(ctx, x1, trackY, ww, trackH, fill.light, fill.dark, fill.pitch)
+          } else if (fill.type === 'caac') {
+            fillCAAC(ctx, x1, trackY, ww, trackH)
+          } else {
+            ctx.fillStyle = '#bdbdbd'
+            ctx.fillRect(x1, trackY, ww, trackH)
+          }
         } else {
           ctx.fillStyle = fill || '#bdbdbd'
           ctx.fillRect(x1, trackY, ww, trackH)
@@ -442,19 +458,9 @@ export default function SLDCanvasV2({
         if (lbl) {
           ctx.font = '11px system-ui'
           const textW = ctx.measureText(lbl).width
-          const padding = lbl === 'CAAC' ? 4 : 2
+          const padding = 2
           if (textW + padding * 2 <= ww) {
-            if (lbl === 'CAAC') {
-              const rectW = textW + padding * 2
-              const rectH = 16
-              const rectX = x1 + (ww - rectW) / 2
-              const rectY = trackY + (trackH - rectH) / 2
-              ctx.fillStyle = '#282828'
-              ctx.fillRect(rectX, rectY, rectW, rectH)
-              ctx.fillStyle = '#fff'
-            } else {
-              ctx.fillStyle = textColorFn ? textColorFn(r) : '#fff'
-            }
+            ctx.fillStyle = textColorFn ? textColorFn(r) : '#fff'
             ctx.textAlign = 'center'
             ctx.fillText(lbl, x1 + ww / 2, trackY + (trackH / 2) + 3)
             ctx.textAlign = 'left'
@@ -485,7 +491,7 @@ export default function SLDCanvasV2({
             layers?.surface,
             r => (
               r.surfacePerLane === 'CAAC'
-                ? { type: 'stripes', light: '#a1a1a1', dark: '#282828', pitch: 20 }
+                ? { type: 'caac' }
                 : (SURFACE_COLORS[r.surface] || '#bdbdbd')
             ),
             r => r.surfacePerLane || r.surface
@@ -502,6 +508,9 @@ export default function SLDCanvasV2({
           break
         case 'rowWidth':
           drawRanges(box, layers?.rowWidth, () => '#1565c0', r => `${r.rowWidthM} m`)
+          break
+        case 'carriagewayWidth':
+          drawRanges(box, layers?.carriagewayWidth, () => '#f57c00', r => `${r.carriagewayWidthM} m`)
           break
         case 'lanes':
           drawRanges(box, layers?.lanes, r => laneColor(r.lanes), r => `${r.lanes} lanes`)
@@ -552,6 +561,7 @@ export default function SLDCanvasV2({
       case 'quality': return layers.quality || []
       case 'lanes': return layers.lanes || []
       case 'rowWidth': return layers.rowWidth || []
+      case 'carriagewayWidth': return layers.carriagewayWidth || []
       case 'municipality': return layers.municipality || []
       case 'bridges': return layers.bridges || []
       default: return []
@@ -566,6 +576,7 @@ export default function SLDCanvasV2({
       case 'quality': return r.quality
       case 'lanes': return `${r.lanes} lanes`
       case 'rowWidth': return `${r.rowWidthM} m`
+      case 'carriagewayWidth': return `${r.carriagewayWidthM} m`
       case 'municipality': return r.name
       case 'bridges': return r.name
       default: return ''
