@@ -43,20 +43,30 @@ function laneColor(lanes) {
   return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`
 }
 
-function createStripePattern(ctx, c1, c2) {
-  const size = 12
-  const cvs = document.createElement('canvas')
-  cvs.width = cvs.height = size
-  const pctx = cvs.getContext('2d')
-  pctx.fillStyle = c1
-  pctx.fillRect(0, 0, size, size)
-  pctx.strokeStyle = c2
-  pctx.lineWidth = size / 2
-  pctx.beginPath()
-  pctx.moveTo(-size, size)
-  pctx.lineTo(size, -size)
-  pctx.stroke()
-  return ctx.createPattern(cvs, 'repeat')
+function createStripePattern(ctx, light, dark) {
+  const pitch = 16
+  const stripe = pitch / 2
+  const diag = Math.ceil(pitch * Math.SQRT2)
+
+  const tmp = document.createElement('canvas')
+  tmp.width = tmp.height = diag
+  const tctx = tmp.getContext('2d')
+  tctx.fillStyle = light
+  tctx.fillRect(0, 0, diag, diag)
+  tctx.fillStyle = dark
+  for (let x = 0; x < diag; x += pitch) {
+    tctx.fillRect(x, 0, stripe, diag)
+  }
+
+  const pat = document.createElement('canvas')
+  pat.width = pat.height = pitch
+  const pctx = pat.getContext('2d')
+  pctx.translate(pitch / 2, pitch / 2)
+  pctx.rotate(Math.PI / 4)
+  pctx.translate(-diag / 2, -diag / 2)
+  pctx.drawImage(tmp, 0, 0)
+
+  return ctx.createPattern(pat, 'repeat')
 }
 
 
@@ -452,7 +462,7 @@ export default function SLDCanvasV2({
       ctx.fillText(box.title, 4, titleY)
     }
 
-    const caacPattern = createStripePattern(ctx, '#282828', '#a1a1a1')
+    const caacPattern = createStripePattern(ctx, '#a1a1a1', '#282828')
     for (const box of layout.bandBoxes) {
       switch (box.key) {
         case 'surface':
