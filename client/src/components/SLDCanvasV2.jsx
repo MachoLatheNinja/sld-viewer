@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { DEFAULT_BANDS } from '../bands'
-import { parseLrpKm, formatLRP } from '../lrp'
+import { parseLrpKm } from '../lrp'
 import { createMeterScale } from '../scale'
 
 const SURFACE_COLORS = { Asphalt:'#282828', Concrete:'#a1a1a1', Gravel:'#8d6e63' }
@@ -30,9 +30,6 @@ const EPS = 1e-6
 
 function formatAADT(n){ return (n==null)? '' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') }
 
-function formatChainage(m){
-  return (m==null)? '' : String(m).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-}
 
 function laneColor(lanes) {
   const min = 2
@@ -584,57 +581,6 @@ export default function SLDCanvasV2({
     }
   }
 
-  const bandValue = (key, r) => {
-    if (key.startsWith('miow_')) return r.typeOfWork
-    switch (key) {
-      case 'surface': return r.surface
-      case 'aadt': return formatAADT(r.aadt)
-      case 'status': return r.status
-      case 'quality': return r.quality
-      case 'lanes': return `${r.lanes} lanes`
-      case 'rowWidth': return `${r.rowWidthM} m`
-      case 'carriagewayWidth': return `${r.carriagewayWidthM} m`
-      case 'municipality': return r.name
-      case 'bridges': return r.name
-      default: return ''
-    }
-  }
-
-  const valuesAt = (key, km) => {
-    const arr = bandArrayByKey(key)
-    for (let i = 0; i < arr.length; i++) {
-      const r = arr[i]
-      if (km >= r.startKm - EPS && km <= r.endKm + EPS) {
-        if (key === 'bridges') {
-          if (Math.abs(km - r.startKm) < EPS) {
-            const prev = arr[i - 1]
-            if (prev && Math.abs(prev.endKm - r.startKm) < EPS) {
-              return { left: bandValue(key, prev), right: bandValue(key, r) }
-            }
-            return { right: bandValue(key, r) }
-          }
-          if (Math.abs(km - r.endKm) < EPS) {
-            const next = arr[i + 1]
-            if (next && Math.abs(next.startKm - r.endKm) < EPS) {
-              return { left: bandValue(key, r), right: bandValue(key, next) }
-            }
-            return { left: bandValue(key, r) }
-          }
-          return { center: bandValue(key, r) }
-        } else {
-          if (Math.abs(km - r.endKm) < EPS && arr[i + 1]) {
-            return { left: bandValue(key, r), right: bandValue(key, arr[i + 1]) }
-          }
-          if (Math.abs(km - r.startKm) < EPS && arr[i - 1]) {
-            return { left: bandValue(key, arr[i - 1]), right: bandValue(key, r) }
-          }
-          return { center: bandValue(key, r) }
-        }
-      }
-    }
-    return {}
-  }
-
   // hit seam/edge: for bridges, allow start & end edge handles; for others, only adjacent seams
   const hitSeamAt = (x, y) => {
     const { kmToX } = helpersRef.current
@@ -805,7 +751,7 @@ export default function SLDCanvasV2({
   return (
     <canvas
       ref={canvasRef}
-      style={{ width:'100%', height: layout.totalH, display:'block', cursor:'grab' }}
+      style={{ width:'100%', height: layout.totalH, display:'block', cursor:'grab', transform:'translateX(1px)' }}
       width={1200}
       height={layout.totalH}
       onWheel={onWheel}
