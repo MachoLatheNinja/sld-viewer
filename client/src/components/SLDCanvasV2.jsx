@@ -43,6 +43,23 @@ function laneColor(lanes) {
   return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`
 }
 
+function createStripePattern(ctx, c1, c2) {
+  const size = 6
+  const cvs = document.createElement('canvas')
+  cvs.width = cvs.height = size
+  const pctx = cvs.getContext('2d')
+  pctx.fillStyle = c1
+  pctx.fillRect(0, 0, size, size)
+  pctx.fillStyle = c2
+  pctx.beginPath()
+  pctx.moveTo(0, size)
+  pctx.lineTo(size, 0)
+  pctx.lineTo(size, size)
+  pctx.closePath()
+  pctx.fill()
+  return ctx.createPattern(cvs, 'repeat')
+}
+
 
 export default function SLDCanvasV2({
   road,
@@ -436,10 +453,16 @@ export default function SLDCanvasV2({
       ctx.fillText(box.title, 4, titleY)
     }
 
+    const caacPattern = createStripePattern(ctx, '#282828', '#a1a1a1')
     for (const box of layout.bandBoxes) {
       switch (box.key) {
         case 'surface':
-          drawRanges(box, layers?.surface, r => SURFACE_COLORS[r.surface]||'#bdbdbd', r => r.surfacePerLane || r.surface)
+          drawRanges(
+            box,
+            layers?.surface,
+            r => (r.surfacePerLane === 'CAAC' ? caacPattern : (SURFACE_COLORS[r.surface]||'#bdbdbd')),
+            r => r.surfacePerLane || r.surface
+          )
           break
         case 'aadt':
           drawRanges(box, layers?.aadt, () => '#6a1b9a', r => formatAADT(r.aadt))
