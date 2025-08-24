@@ -667,24 +667,6 @@ export default function SLDCanvasV2({
     return null
   }
 
-  const onWheel = (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    const { xToKm } = helpersRef.current
-    const { offsetX } = e.nativeEvent
-    const mouseKm = xToKm(offsetX)
-    const currSpan = Math.max(0.001, toKm - fromKm)
-    // Use the wheel delta directly for smoother zooming instead of fixed steps.
-    const factor = Math.exp(e.deltaY * 0.001)
-    let newSpan = Math.min(lengthKm, Math.max(0.05, currSpan * factor))
-    const leftFrac = (mouseKm - fromKm) / currSpan
-    let newFrom = mouseKm - leftFrac * newSpan
-    let newTo = newFrom + newSpan
-    if (newFrom < 0) { newTo -= newFrom; newFrom = 0 }
-    if (newTo > lengthKm) { newFrom -= (newTo - lengthKm); newTo = lengthKm }
-    if (newTo <= newFrom) return
-    onDomainChange(newFrom, newTo)
-  }
 
   const onMouseDown = (e) => {
     const rect = e.currentTarget.getBoundingClientRect()
@@ -799,7 +781,6 @@ export default function SLDCanvasV2({
       style={{ width:'100%', height: layout.totalH, display:'block', cursor:'grab' }}
       width={1200}
       height={layout.totalH}
-      onWheel={onWheel}
       onMouseDown={onMouseDown}
       onMouseMove={onMouseMove}
       onMouseUp={onMouseUp}

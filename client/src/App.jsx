@@ -8,6 +8,7 @@ import { lrpToChainageKm, formatLRP } from './lrp'
 
 const EPS = 1e-6
 const SNAP_PX = 6 // px tolerance for snapping guide to seams
+const OVERSCAN = 200
 
 function mergeRanges(arr = [], props) {
   if (!arr.length) return []
@@ -47,6 +48,10 @@ export default function App() {
   const hoverClientX = useRef(null)
   const hoverBandKey = useRef(null)
   const contentRef = useRef(null)
+  const zoomRef = useRef(null)
+  const wheelBaseRef = useRef(null)
+  const wheelNextRef = useRef(null)
+  const wheelTimerRef = useRef(null)
 
   const [fromKm, setFromKm] = useState(0)
   const [toKm, setToKm] = useState(10)
@@ -64,6 +69,7 @@ export default function App() {
   }, [])
   useEffect(() => () => {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current)
+    if (wheelTimerRef.current) clearTimeout(wheelTimerRef.current)
   }, [])
 
   const [showGuide, setShowGuide] = useState(false)
@@ -310,22 +316,56 @@ export default function App() {
   const handlePanelWheel = (e) => {
     if (!scale) return
     e.preventDefault()
-    const rect = e.currentTarget.getBoundingClientRect()
-    const a = scale.cssLeftFromM(0)
-    const b = scale.pxPerM * 1000
-    const x = e.clientX - rect.left - LABEL_W
-    const mouseKm = (x - a) / b
+    const inner = zoomRef.current
+    if (!inner) return
+
+    // establish base domain on first wheel event
+    if (!wheelBaseRef.current) {
+      wheelBaseRef.current = {
+        from: fromKm,
+        to: toKm,
+        width: inner.offsetWidth,
+      }
+      wheelNextRef.current = { from: fromKm, to: toKm }
+    }
+
+    const base = wheelBaseRef.current
+    const curr = wheelNextRef.current || base
     const length = currentRoad?.lengthKm || 0
-    const currSpan = Math.max(0.001, toKm - fromKm)
+    const currSpan = Math.max(0.001, curr.to - curr.from)
+
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = contentRef.current.scrollLeft + e.clientX - rect.left - LABEL_W
+    const mouseKm = curr.from + (x / base.width) * currSpan
+
     const factor = Math.exp(e.deltaY * 0.001)
     let newSpan = Math.min(length, Math.max(0.05, currSpan * factor))
-    const leftFrac = (mouseKm - fromKm) / currSpan
+    const leftFrac = (mouseKm - curr.from) / currSpan
     let newFrom = mouseKm - leftFrac * newSpan
     let newTo = newFrom + newSpan
     if (newFrom < 0) { newTo -= newFrom; newFrom = 0 }
     if (newTo > length) { newFrom -= (newTo - length); newTo = length }
     if (newTo <= newFrom) return
-    setDomain(newFrom, newTo)
+
+    wheelNextRef.current = { from: newFrom, to: newTo }
+
+    const scaleFactor = (base.to - base.from) / (newTo - newFrom)
+    const anchorPx = contentRef.current.scrollLeft + e.clientX - rect.left
+    const anchorPercent = (anchorPx / base.width) * 100
+    inner.style.transformOrigin = `${anchorPercent}% 0`
+    inner.style.transform = `scale(${scaleFactor})`
+
+    clearTimeout(wheelTimerRef.current)
+    wheelTimerRef.current = setTimeout(() => {
+      const next = wheelNextRef.current
+      wheelBaseRef.current = null
+      wheelNextRef.current = null
+      if (inner) {
+        inner.style.transform = ''
+        inner.style.transformOrigin = ''
+      }
+      if (next) setDomain(next.from, next.to)
+    }, 80)
   }
 
   return (
@@ -374,72 +414,76 @@ export default function App() {
           </div>
           <div
             ref={contentRef}
-            style={{ position:'relative', overflowX:'auto' }}
+            style={{ position:'relative', overflowX:'auto', background:'#fff' }}
             onMouseMove={handlePanelMouseMove}
             onMouseLeave={handlePanelMouseLeave}
             onScroll={handlePanelScroll}
             onWheel={handlePanelWheel}
           >
-            <div style={{ display:'flex' }}>
-              <div
-                style={{
-                  position:'sticky',
-                  left:0,
-                  flex:`0 0 ${LABEL_W}px`,
-                  background:'#fafafa',
-                  zIndex:1,
-                  pointerEvents:'none'
-                }}
-              />
-              <div style={{ flex:1 }}>
-                <SLDCanvasV2
-                  road={currentRoad}
+            <div ref={zoomRef} style={{ position:'relative', willChange:'transform', padding:`0 ${OVERSCAN}px` }}>
+              <div style={{ margin:`0 -${OVERSCAN}px`, position:'relative' }}>
+                <div style={{ display:'flex' }}>
+                  <div
+                    style={{
+                      position:'sticky',
+                      left:0,
+                      flex:`0 0 ${LABEL_W}px`,
+                      background:'#fafafa',
+                      zIndex:1,
+                      pointerEvents:'none'
+                    }}
+                  />
+                  <div style={{ flex:1 }}>
+                    <SLDCanvasV2
+                      road={currentRoad}
+                      layers={layers}
+                      domain={domain}
+                      onDomainChange={setDomain}
+                      bands={[]}
+                      onMoveSeam={handleMoveSeam}
+                      canEditSeams={editSeams}
+                      showGuide={showGuide}
+                      onHoverKm={setHoverKm}
+                      onScale={setScale}
+                    />
+                  </div>
+                </div>
+                <BandAccordion
+                  groups={bandGroups}
                   layers={layers}
                   domain={domain}
-                  onDomainChange={setDomain}
-                  bands={[]}
-                  onMoveSeam={handleMoveSeam}
-                  canEditSeams={editSeams}
-                  showGuide={showGuide}
-                  onHoverKm={setHoverKm}
-                  onScale={setScale}
+                  activeKm={activeKm}
+                  guideLeft={guideLeft}
+                  contentRef={contentRef}
+                  scale={scale}
                 />
+                {activeKm != null && guideLeft != null && (
+                  <div
+                    style={{ position:'absolute', top:0, bottom:0, left:guideLeft, width:1, background:'#FFC107', pointerEvents:'none', zIndex:10 }}
+                  />
+                )}
+                {activeKm != null && guideLeft != null && (
+                  <div
+                    style={{
+                      position:'absolute',
+                      left:guideLeft,
+                      top:0,
+                      transform:'translate(-50%, -100%)',
+                      background:'rgba(0,0,0,0.7)',
+                      color:'#fff',
+                      borderRadius:9999,
+                      padding:'0 6px',
+                      fontSize:12,
+                      whiteSpace:'nowrap',
+                      pointerEvents:'none',
+                      zIndex:40,
+                    }}
+                  >
+                    {formatLRP(activeKm, layers?.kmPosts)} ({formatChainage(activeKm * 1000)} m)
+                  </div>
+                )}
               </div>
             </div>
-            <BandAccordion
-              groups={bandGroups}
-              layers={layers}
-              domain={domain}
-              activeKm={activeKm}
-              guideLeft={guideLeft}
-              contentRef={contentRef}
-              scale={scale}
-            />
-            {activeKm != null && guideLeft != null && (
-              <div
-                style={{ position:'absolute', top:0, bottom:0, left:guideLeft, width:1, background:'#FFC107', pointerEvents:'none', zIndex:10 }}
-              />
-            )}
-            {activeKm != null && guideLeft != null && (
-              <div
-                style={{
-                  position:'absolute',
-                  left:guideLeft,
-                  top:0,
-                  transform:'translate(-50%, -100%)',
-                  background:'rgba(0,0,0,0.7)',
-                  color:'#fff',
-                  borderRadius:9999,
-                  padding:'0 6px',
-                  fontSize:12,
-                  whiteSpace:'nowrap',
-                  pointerEvents:'none',
-                  zIndex:40,
-                }}
-              >
-                {formatLRP(activeKm, layers?.kmPosts)} ({formatChainage(activeKm * 1000)} m)
-              </div>
-            )}
           </div>
           <div style={{ fontSize:12, color:'#616161', marginTop:6 }}>
             Drag seams to edit. Bridges allow gaps and support dragging either edge. Pan by dragging; scroll to zoom.
