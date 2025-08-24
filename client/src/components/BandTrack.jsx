@@ -22,7 +22,6 @@ function formatAADT(n){
 
 export default function BandTrack({ band, layers, domain, activeKm, guideLeft, contentRef }) {
   const canvasRef = useRef(null)
-  const pillRef = useRef(null)
   const trackRef = useRef(null)
   const [width, setWidth] = useState(0)
   const height = Math.max(18, Math.min(20, Number(band.height) || 20))
@@ -112,15 +111,11 @@ export default function BandTrack({ band, layers, domain, activeKm, guideLeft, c
   const kmToX = (km) => LEFT_PAD + (km - fromKm) * scale
   const segment = activeKm != null ? bandSegmentAt(layers, band.key, activeKm) : null
   const label = segment ? bandValue(band.key, segment) : null
-  const pillW = pillRef.current?.offsetWidth || 0
-  const segStart = segment ? kmToX(segment.startKm) : 0
-  const segEnd = segment ? kmToX(segment.endKm) : width
   let left = null
   if (guideLeft != null && contentRef?.current && trackRef.current) {
     const trackRect = trackRef.current.getBoundingClientRect()
     const contentRect = contentRef.current.getBoundingClientRect()
     left = guideLeft - trackRect.left + contentRect.left
-    left = Math.max(segStart + pillW / 2, Math.min(segEnd - pillW / 2, left))
     left = Math.round(left)
   }
 
@@ -129,7 +124,6 @@ export default function BandTrack({ band, layers, domain, activeKm, guideLeft, c
       <canvas ref={canvasRef} style={{ width:'100%', height }} />
       {label && left != null && (
         <div
-          ref={pillRef}
           style={{
             position:'absolute',
             left,
