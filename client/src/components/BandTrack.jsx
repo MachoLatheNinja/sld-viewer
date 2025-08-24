@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 
-const LEFT_PAD = 60
+const LEFT_PAD = 0
 const RIGHT_PAD = 16
 const SURFACE_COLORS = { Asphalt:'#282828', Concrete:'#a1a1a1', Gravel:'#8d6e63' }
 const QUALITY_COLORS = { Poor:'#ffb54c', Fair:'#f8d66d', Good:'#7abd7e', Bad:'#ff6961' }
@@ -21,7 +21,7 @@ function formatAADT(n){
 
 export default function BandTrack({ band, layers, domain }) {
   const canvasRef = useRef(null)
-  const height = Math.max(20, Number(band.height)||28)
+  const height = Math.max(18, Math.min(20, Number(band.height) || 20))
 
   useEffect(() => {
     const canvas = canvasRef.current; if (!canvas) return
@@ -41,20 +41,24 @@ export default function BandTrack({ band, layers, domain }) {
     const kmToX = km => LEFT_PAD + (km - fromKm) * scale
 
     const drawRanges = (ranges, colorFn, labelFn) => {
-      (ranges||[]).forEach(r => {
+      ctx.font = '12px system-ui'
+      ctx.textBaseline = 'middle'
+      ;(ranges || []).forEach(r => {
         if (r.endKm < fromKm || r.startKm > toKm) return
         const x1 = kmToX(Math.max(r.startKm, fromKm))
         const x2 = kmToX(Math.min(r.endKm, toKm))
+        const segW = Math.max(0, x2 - x1)
         const color = colorFn(r)
         ctx.fillStyle = color
-        ctx.fillRect(x1, 0, Math.max(0, x2 - x1), h)
+        ctx.fillRect(x1, 0, segW, h)
         const label = labelFn ? labelFn(r) : ''
         if (label) {
-          ctx.fillStyle = '#000'
-          ctx.textAlign = 'center'
-          ctx.textBaseline = 'middle'
-          ctx.font = '12px system-ui'
-          ctx.fillText(label, (x1+x2)/2, h/2)
+          const textW = ctx.measureText(label).width
+          if (segW >= textW + 4) {
+            ctx.fillStyle = '#000'
+            ctx.textAlign = 'left'
+            ctx.fillText(label, x1 + 2, h / 2)
+          }
         }
       })
     }

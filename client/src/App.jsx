@@ -149,7 +149,7 @@ export default function App() {
     const next = DEFAULT_BAND_GROUPS.map(g => ({ ...g, bands:[...g.bands] }))
     const hist = next.find(g => g.key === 'historical')
     if (hist) {
-      hist.bands = years.map(y => ({ key:`miow_${y}`, title:String(y), height:28 }))
+      hist.bands = years.map(y => ({ key:`miow_${y}`, title:String(y), height:20 }))
     }
     setBandGroups(next)
   }, [allLayers])

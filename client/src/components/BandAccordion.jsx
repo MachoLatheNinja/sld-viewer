@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import BandTrack from './BandTrack'
 
+const LABEL_W = 60
+
 export default function BandAccordion({ groups = [], layers, domain }) {
   const [open, setOpen] = useState(() => new Set(groups.map(g => g.key)))
 
@@ -33,18 +35,33 @@ export default function BandAccordion({ groups = [], layers, domain }) {
             <span style={{ marginLeft:8, fontWeight:'bold' }}>{g.title}</span>
           </div>
           {open.has(g.key) && (
-            <div style={{ padding:'4px 12px 8px 24px' }}>
-              {g.bands.map(b => (
-                <div key={b.key} style={{ margin:'4px 0', border:'1px solid #e0e0e0', borderRadius:4, background:'#fafafa' }}>
-                  <div style={{ display:'flex' }}>
-                    <div style={{ width:4, background:'#90caf9' }} />
-                    <div style={{ flex:1 }}>
-                      <div style={{ padding:'4px 8px' }}>{b.title}</div>
-                      <BandTrack band={b} layers={layers} domain={domain} />
+            <div style={{ padding:'4px 8px 8px 8px' }}>
+              {g.bands.map(b => {
+                const h = Math.max(18, Math.min(20, b.height || 20))
+                return (
+                  <div key={b.key} style={{ margin:'2px 0' }}>
+                    <div style={{ display:'flex', height:h, border:'1px solid #e0e0e0', borderRadius:4, overflow:'hidden' }}>
+                      <div
+                        style={{
+                          position:'sticky',
+                          left:0,
+                          display:'flex',
+                          alignItems:'center',
+                          background:'#fafafa',
+                          zIndex:1,
+                          flex:`0 0 ${LABEL_W}px`
+                        }}
+                      >
+                        <div style={{ width:4, alignSelf:'stretch', background:'#90caf9' }} />
+                        <div style={{ padding:'0 8px', fontSize:12, whiteSpace:'nowrap' }}>{b.title}</div>
+                      </div>
+                      <div style={{ flex:1 }}>
+                        <BandTrack band={{ ...b, height:h }} layers={layers} domain={domain} />
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
