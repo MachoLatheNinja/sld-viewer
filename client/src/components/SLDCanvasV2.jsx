@@ -751,8 +751,8 @@ export default function SLDCanvasV2({
   return (
     <canvas
       ref={canvasRef}
-      style={{ width:'100%', height: layout.totalH, display:'block', cursor:'grab', transform:'translateX(1px)' }}
-      width={1200}
+      style={{ width:'calc(100% - 2px)', height: layout.totalH, display:'block', cursor:'grab', transform:'translateX(2px)' }}
+      width={1198}
       height={layout.totalH}
       onWheel={onWheel}
       onMouseDown={onMouseDown}
