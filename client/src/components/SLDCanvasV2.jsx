@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { DEFAULT_BANDS } from '../bands'
-import { parseLrpKm, formatLRP, lrpToChainageKm } from '../lrp'
+import { parseLrpKm, formatLRP } from '../lrp'
 
 const SURFACE_COLORS = { Asphalt:'#282828', Concrete:'#a1a1a1', Gravel:'#8d6e63' }
 const QUALITY_COLORS = { Poor:'#e53935', Fair:'#fb8c00', Good:'#43a047', Excellent:'#1e88e5' }
@@ -52,6 +52,7 @@ export default function SLDCanvasV2({
   onMoveSeam,        // (bandKey, leftId, rightId, km, extra={})
   showGuide,
   guideKm,
+  canEditSeams,
 }) {
   const canvasRef = useRef(null)
   const [panX, setPanX] = useState(0)
@@ -600,7 +601,7 @@ export default function SLDCanvasV2({
     const rect = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
-    const seam = hitSeamAt(x, y)
+    const seam = canEditSeams ? hitSeamAt(x, y) : null
     if (seam) {
       dragRef.current = { type:'seam', startX:x, startY:y, moved:false, ...seam }
       return
@@ -613,7 +614,7 @@ export default function SLDCanvasV2({
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
     const seam = hitSeamAt(x, y)
-    e.currentTarget.style.cursor = seam ? 'ew-resize' : (dragRef.current?.type==='pan' ? 'grabbing' : 'grab')
+    e.currentTarget.style.cursor = (canEditSeams && seam) ? 'ew-resize' : (dragRef.current?.type==='pan' ? 'grabbing' : 'grab')
     const { xToKm } = helpersRef.current
     if (showGuide) {
       let km = xToKm(x)
@@ -655,15 +656,12 @@ export default function SLDCanvasV2({
       } else {
         currentKm = drag.left.endKm
       }
-      const defaultVal = formatLRP(currentKm, layers?.kmPosts || [])
-      const inp = window.prompt('Enter new seam location (meters or K### + ####)', defaultVal)
+      const defaultVal = Math.round(currentKm * 1000)
+      const inp = window.prompt('Enter new seam location (meters)', String(defaultVal))
       if (inp == null) return
-      let newKm = lrpToChainageKm(inp, layers?.kmPosts || [])
-      if (newKm == null) {
-        const num = Number(inp)
-        if (Number.isFinite(num)) newKm = num / 1000
-      }
-      if (newKm == null) return
+      const num = Number(inp)
+      if (!Number.isFinite(num)) return
+      const newKm = num / 1000
 
       if (drag.bandKey === 'bridges') {
         if (drag.edge === 'end') {

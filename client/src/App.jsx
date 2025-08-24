@@ -36,6 +36,7 @@ export default function App() {
   const [toKm, setToKm] = useState(10)
 
   const [showGuide, setShowGuide] = useState(false)
+  const [editSeams, setEditSeams] = useState(false)
 
   const [bands] = useState(() => DEFAULT_BANDS)
   const domain = useMemo(() => ({ fromKm, toKm }), [fromKm, toKm])
@@ -206,6 +207,8 @@ export default function App() {
           onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
           showGuide={showGuide}
           onToggleGuide={toggleGuide}
+          editSeams={editSeams}
+          onToggleEditSeams={()=>setEditSeams(e=>!e)}
           kmPosts={layers?.kmPosts}
         />
 
@@ -216,6 +219,7 @@ export default function App() {
           onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
           bands={bands}
           onMoveSeam={handleMoveSeam}
+          canEditSeams={editSeams}
           showGuide={showGuide}
           guideKm={guideKm}
         />

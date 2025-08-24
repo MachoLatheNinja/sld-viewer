@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import { formatLRP } from '../lrp'
 
-export default function ControlBar({ road, domain, onDomainChange, showGuide, onToggleGuide, kmPosts = [] }) {
+export default function ControlBar({ road, domain, onDomainChange, showGuide, onToggleGuide, editSeams, onToggleEditSeams, kmPosts = [] }) {
   const lengthKm = Number(road?.lengthKm || 0)
   const from = domain?.fromKm ?? 0
   const to   = domain?.toKm ?? Math.max(10, lengthKm)
@@ -31,6 +31,9 @@ export default function ControlBar({ road, domain, onDomainChange, showGuide, on
       <div style={{ marginLeft:'auto', display:'flex', gap:6 }}>
         <button onClick={onToggleGuide} title="Toggle guide" style={{ fontSize:16, background: showGuide ? '#ffd54f' : undefined }}>
           📏
+        </button>
+        <button onClick={onToggleEditSeams} title="Toggle seam edit" style={{ fontSize:16, background: editSeams ? '#ffd54f' : undefined }}>
+          ✂️
         </button>
         <button onClick={()=>jump(-1)}>◀ Pan 1km</button>
         <button onClick={()=>jump(+1)}>Pan 1km ▶</button>
