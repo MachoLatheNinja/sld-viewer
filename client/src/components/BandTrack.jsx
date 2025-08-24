@@ -123,8 +123,8 @@ export default function BandTrack({ band, layers, domain, activeKm }) {
           style={{
             position:'absolute',
             left: clampedX,
-            bottom:'100%',
-            transform:'translateX(-50%)',
+            top:'50%',
+            transform:'translate(-50%, -50%)',
             background:'rgba(0,0,0,0.7)',
             color:'#fff',
             borderRadius:12,
@@ -133,7 +133,6 @@ export default function BandTrack({ band, layers, domain, activeKm }) {
             whiteSpace:'nowrap',
             pointerEvents:'none',
             zIndex:40,
-            marginBottom:2,
           }}
         >
           {label}

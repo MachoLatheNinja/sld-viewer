@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { fetchRoads, fetchLayers, moveBandSeam } from './api'
 import ControlBar from './components/ControlBar'
 import SLDCanvasV2 from './components/SLDCanvasV2'
 import { DEFAULT_BAND_GROUPS } from './bands'
 import BandAccordion from './components/BandAccordion'
-import { lrpToChainageKm } from './lrp'
+import { lrpToChainageKm, formatLRP } from './lrp'
 
 const EPS = 1e-6
 
@@ -27,6 +27,10 @@ function mergeRanges(arr = [], props) {
   return out
 }
 
+function formatChainage(m) {
+  return m == null ? '' : String(Math.round(m)).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+}
+
 export default function App() {
   const [roads, setRoads] = useState([])
   const [q, setQ] = useState('')
@@ -38,6 +42,7 @@ export default function App() {
   const [guideKm, setGuideKm] = useState(null)
   const [hoverKm, setHoverKm] = useState(null)
   const [kmToX, setKmToX] = useState(null)
+  const hoverClientX = useRef(null)
 
   const [fromKm, setFromKm] = useState(0)
   const [toKm, setToKm] = useState(10)
@@ -201,6 +206,34 @@ export default function App() {
   const activeKm = guideKm ?? (showGuide ? hoverKm : null)
   const hoverX = activeKm != null && kmToX ? kmToX(activeKm) : null
 
+  const handlePanelMouseMove = (e) => {
+    if (!kmToX) return
+    hoverClientX.current = e.clientX
+    const rect = e.currentTarget.getBoundingClientRect()
+    const a = kmToX(0)
+    const b = kmToX(1) - a
+    const len = currentRoad?.lengthKm || 0
+    const x = e.clientX - rect.left
+    const km = (x - a) / b
+    setHoverKm(Math.max(0, Math.min(len, km)))
+  }
+
+  const handlePanelMouseLeave = () => {
+    hoverClientX.current = null
+    setHoverKm(null)
+  }
+
+  const handlePanelScroll = (e) => {
+    if (!kmToX || hoverClientX.current == null) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const a = kmToX(0)
+    const b = kmToX(1) - a
+    const len = currentRoad?.lengthKm || 0
+    const x = hoverClientX.current - rect.left
+    const km = (x - a) / b
+    setHoverKm(Math.max(0, Math.min(len, km)))
+  }
+
   return (
     <div style={{ fontFamily:'Inter, system-ui, Arial', background:'#f0f2f5', minHeight:'100vh' }}>
       <div style={{ maxWidth: 1400, margin:'0 auto', padding:'16px' }}>
@@ -245,7 +278,12 @@ export default function App() {
           <div style={{ fontWeight:700, marginBottom:6 }}>
             {currentRoad?.name ?? 'Road'} — Editable Independent Bands
           </div>
-          <div style={{ position:'relative' }}>
+          <div
+            style={{ position:'relative', overflowX:'auto' }}
+            onMouseMove={handlePanelMouseMove}
+            onMouseLeave={handlePanelMouseLeave}
+            onScroll={handlePanelScroll}
+          >
             <SLDCanvasV2
               road={currentRoad}
               layers={layers}
@@ -263,6 +301,26 @@ export default function App() {
               <div
                 style={{ position:'absolute', top:0, bottom:0, left:hoverX, width:1, background:'#FFC107', pointerEvents:'none', zIndex:10 }}
               />
+            )}
+            {activeKm != null && hoverX != null && (
+              <div
+                style={{
+                  position:'absolute',
+                  left:hoverX,
+                  top:0,
+                  transform:'translate(-50%, -100%)',
+                  background:'rgba(0,0,0,0.7)',
+                  color:'#fff',
+                  borderRadius:12,
+                  padding:'0 6px',
+                  fontSize:12,
+                  whiteSpace:'nowrap',
+                  pointerEvents:'none',
+                  zIndex:40,
+                }}
+              >
+                {formatLRP(activeKm, layers?.kmPosts)} ({formatChainage(activeKm * 1000)} m)
+              </div>
             )}
           </div>
           <div style={{ fontSize:12, color:'#616161', marginTop:6 }}>
