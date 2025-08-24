@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import BandTrack from './BandTrack'
 
-const LABEL_W = 60
+export const LABEL_W = 60
 
 export default function BandAccordion({ groups = [], layers, domain, activeKm, guideLeft, contentRef, scale }) {
   const [open, setOpen] = useState(() => new Set(groups.map(g => g.key)))
@@ -53,7 +53,7 @@ export default function BandAccordion({ groups = [], layers, domain, activeKm, g
                         }}
                       >
                         <div style={{ width:4, alignSelf:'stretch', background:'#90caf9' }} />
-                        <div style={{ padding:'0 8px', fontSize:12, whiteSpace:'nowrap' }}>{b.title}</div>
+                        <div style={{ flex:1, padding:'0 8px', fontSize:12, whiteSpace:'nowrap', textAlign:'right' }}>{b.title}</div>
                       </div>
                       <div style={{ flex:1, position:'relative', overflow:'visible' }}>
                         <BandTrack

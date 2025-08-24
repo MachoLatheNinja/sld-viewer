@@ -3,7 +3,7 @@ import { fetchRoads, fetchLayers, moveBandSeam } from './api'
 import ControlBar from './components/ControlBar'
 import SLDCanvasV2 from './components/SLDCanvasV2'
 import { DEFAULT_BAND_GROUPS, bandArrayByKey } from './bands'
-import BandAccordion from './components/BandAccordion'
+import BandAccordion, { LABEL_W } from './components/BandAccordion'
 import { lrpToChainageKm, formatLRP } from './lrp'
 
 const EPS = 1e-6
@@ -208,9 +208,10 @@ export default function App() {
   }
 
   const activeKm = guideKm ?? (showGuide ? hoverKm : null)
-  const guideLeft = guideKm != null
+  const guideTrackLeft = guideKm != null
     ? (scale ? Math.round(scale.cssLeftFromM(guideKm * 1000)) : null)
     : hoverLeft
+  const guideLeft = guideTrackLeft != null ? LABEL_W + guideTrackLeft : null
 
   const handlePanelMouseMove = (e) => {
     if (!scale) return
@@ -219,7 +220,7 @@ export default function App() {
     const a = scale.cssLeftFromM(0)
     const b = scale.pxPerM * 1000
     const len = currentRoad?.lengthKm || 0
-    const rawX = e.clientX - rect.left
+    const rawX = e.clientX - rect.left - LABEL_W
     let px = Math.round(rawX)
 
     const bandEl = e.target.closest('[data-band-key]')
@@ -262,7 +263,7 @@ export default function App() {
     const a = scale.cssLeftFromM(0)
     const b = scale.pxPerM * 1000
     const len = currentRoad?.lengthKm || 0
-    const rawX = hoverClientX.current - rect.left
+    const rawX = hoverClientX.current - rect.left - LABEL_W
     let px = Math.round(rawX)
 
     const bandKey = hoverBandKey.current
@@ -295,7 +296,7 @@ export default function App() {
     const rect = e.currentTarget.getBoundingClientRect()
     const a = scale.cssLeftFromM(0)
     const b = scale.pxPerM * 1000
-    const x = e.clientX - rect.left
+    const x = e.clientX - rect.left - LABEL_W
     const mouseKm = (x - a) / b
     const length = currentRoad?.lengthKm || 0
     const currSpan = Math.max(0.001, toKm - fromKm)
@@ -363,18 +364,32 @@ export default function App() {
             onScroll={handlePanelScroll}
             onWheel={handlePanelWheel}
           >
-            <SLDCanvasV2
-              road={currentRoad}
-              layers={layers}
-              domain={domain}
-              onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
-              bands={[]}
-              onMoveSeam={handleMoveSeam}
-              canEditSeams={editSeams}
-              showGuide={showGuide}
-              onHoverKm={setHoverKm}
-              onScale={setScale}
-            />
+            <div style={{ display:'flex' }}>
+              <div
+                style={{
+                  position:'sticky',
+                  left:0,
+                  flex:`0 0 ${LABEL_W}px`,
+                  background:'#fafafa',
+                  zIndex:1,
+                  pointerEvents:'none'
+                }}
+              />
+              <div style={{ flex:1 }}>
+                <SLDCanvasV2
+                  road={currentRoad}
+                  layers={layers}
+                  domain={domain}
+                  onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
+                  bands={[]}
+                  onMoveSeam={handleMoveSeam}
+                  canEditSeams={editSeams}
+                  showGuide={showGuide}
+                  onHoverKm={setHoverKm}
+                  onScale={setScale}
+                />
+              </div>
+            </div>
             <BandAccordion
               groups={bandGroups}
               layers={layers}
