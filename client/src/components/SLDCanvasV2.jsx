@@ -3,6 +3,7 @@ import { DEFAULT_BANDS } from '../bands'
 import { parseLrpKm, formatLRP } from '../lrp'
 
 const SURFACE_COLORS = { Asphalt:'#282828', Concrete:'#a1a1a1', Gravel:'#8d6e63' }
+const LANE_SURFACE_MAP = { A:'Asphalt', C:'Concrete', G:'Gravel' }
 const QUALITY_COLORS = { Poor:'#e53935', Fair:'#fb8c00', Good:'#43a047', Excellent:'#1e88e5' }
 const STATUS_COLORS  = { Open:'#9e9e9e', Closed:'#d32f2f' }
 
@@ -166,8 +167,8 @@ export default function SLDCanvasV2({
 
   const surfaceAt = (km) => {
     const arr = layers?.surface || []
-    for (const r of arr) if (km >= r.startKm - EPS && km <= r.endKm + EPS) return r.surface
-    return 'Asphalt'
+    for (const r of arr) if (km >= r.startKm - EPS && km <= r.endKm + EPS) return r
+    return { surface: 'Asphalt' }
   }
 
     const draw = () => {
@@ -215,19 +216,37 @@ export default function SLDCanvasV2({
       const lanesBottom = lanes - lanesTop
       const yTop = centerY - laneW * lanesTop
       const yBot = centerY + laneW * lanesBottom
-      const surf = surfaceAt(midKm)
-      const color = SURFACE_COLORS[surf] || '#707070'
+      const { surface: surf, surfacePerLane } = surfaceAt(midKm)
       const x1 = kmToX(startKm)
       const x2 = kmToX(endKm)
 
-      ctx.fillStyle = color
-      ctx.beginPath()
-      ctx.moveTo(x1 - 0.5, Math.floor(yTop) + 0.5)
-      ctx.lineTo(x2 + 0.5, Math.floor(yTop) + 0.5)
-      ctx.lineTo(x2 + 0.5, Math.ceil(yBot) + 0.5)
-      ctx.lineTo(x1 - 0.5, Math.ceil(yBot) + 0.5)
-      ctx.closePath()
-      ctx.fill()
+      if (surfacePerLane && surfacePerLane.length >= lanes) {
+        for (let lane = 0; lane < lanes; lane++) {
+          const code = surfacePerLane[lane]
+          const laneSurf = LANE_SURFACE_MAP[code] || surf
+          const color = SURFACE_COLORS[laneSurf] || '#707070'
+          const y1 = yTop + laneW * lane
+          const y2 = y1 + laneW
+          ctx.fillStyle = color
+          ctx.beginPath()
+          ctx.moveTo(x1 - 0.5, Math.floor(y1) + 0.5)
+          ctx.lineTo(x2 + 0.5, Math.floor(y1) + 0.5)
+          ctx.lineTo(x2 + 0.5, Math.ceil(y2) + 0.5)
+          ctx.lineTo(x1 - 0.5, Math.ceil(y2) + 0.5)
+          ctx.closePath()
+          ctx.fill()
+        }
+      } else {
+        const color = SURFACE_COLORS[surf] || '#707070'
+        ctx.fillStyle = color
+        ctx.beginPath()
+        ctx.moveTo(x1 - 0.5, Math.floor(yTop) + 0.5)
+        ctx.lineTo(x2 + 0.5, Math.floor(yTop) + 0.5)
+        ctx.lineTo(x2 + 0.5, Math.ceil(yBot) + 0.5)
+        ctx.lineTo(x1 - 0.5, Math.ceil(yBot) + 0.5)
+        ctx.closePath()
+        ctx.fill()
+      }
     }
 
     // center line
@@ -420,7 +439,7 @@ export default function SLDCanvasV2({
     for (const box of layout.bandBoxes) {
       switch (box.key) {
         case 'surface':
-          drawRanges(box, layers?.surface, r => SURFACE_COLORS[r.surface]||'#bdbdbd', r => r.surface)
+          drawRanges(box, layers?.surface, r => SURFACE_COLORS[r.surface]||'#bdbdbd', r => r.surfacePerLane || r.surface)
           break
         case 'aadt':
           drawRanges(box, layers?.aadt, () => '#6a1b9a', r => formatAADT(r.aadt))

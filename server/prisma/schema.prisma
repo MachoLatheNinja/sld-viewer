@@ -68,6 +68,7 @@ model SurfaceBand {
   startM    Float
   endM      Float
   surface   String
+  surfacePerLane String? @map("surface_per_lane")
   section   Section @relation(fields: [sectionId], references: [id])
 
   @@index([sectionId, startM, endM])

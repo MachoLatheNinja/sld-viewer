@@ -7,13 +7,17 @@ import { lrpToChainageKm } from './lrp'
 
 const EPS = 1e-6
 
-function mergeRanges(arr = [], prop) {
+function mergeRanges(arr = [], props) {
   if (!arr.length) return []
+  const getKey = (r) => {
+    const fields = Array.isArray(props) ? props : [props]
+    return fields.map((p) => r[p]).join('|')
+  }
   const out = [{ ...arr[0] }]
   for (let i = 1; i < arr.length; i++) {
     const prev = out[out.length - 1]
     const cur = arr[i]
-    if (prev[prop] === cur[prop] && Math.abs(prev.endKm - cur.startKm) < EPS) {
+    if (getKey(prev) === getKey(cur) && Math.abs(prev.endKm - cur.startKm) < EPS) {
       prev.endKm = cur.endKm
     } else {
       out.push({ ...cur })
@@ -89,7 +93,7 @@ export default function App() {
 
     if (allLayers) {
       setLayers({
-        surface: mergeRanges(slice(allLayers.surface), 'surface'),
+        surface: mergeRanges(slice(allLayers.surface), ['surface','surfacePerLane']),
         aadt: mergeRanges(slice(allLayers.aadt), 'aadt'),
         status: mergeRanges(slice(allLayers.status), 'status'),
         quality: mergeRanges(slice(allLayers.quality), 'quality'),
