@@ -7,7 +7,7 @@ import BandAccordion from './components/BandAccordion'
 import { lrpToChainageKm, formatLRP } from './lrp'
 
 const EPS = 1e-6
-const HANDLE_HIT = 6 // px tolerance for snapping to seams
+const SNAP_PX = 6 // px tolerance for snapping guide to seams
 
 function mergeRanges(arr = [], props) {
   if (!arr.length) return []
@@ -42,6 +42,7 @@ export default function App() {
   const [layers, setLayers] = useState(null)
   const [guideKm, setGuideKm] = useState(null)
   const [hoverKm, setHoverKm] = useState(null)
+  const [hoverLeft, setHoverLeft] = useState(null)
   const [kmToX, setKmToX] = useState(null)
   const hoverClientX = useRef(null)
   const hoverBandKey = useRef(null)
@@ -207,8 +208,9 @@ export default function App() {
   }
 
   const activeKm = guideKm ?? (showGuide ? hoverKm : null)
-  const hoverX = activeKm != null && kmToX ? kmToX(activeKm) : null
-  const guideLeft = hoverX != null ? Math.round(hoverX) : null
+  const guideLeft = guideKm != null
+    ? (kmToX ? Math.round(kmToX(guideKm)) : null)
+    : hoverLeft
 
   const handlePanelMouseMove = (e) => {
     if (!kmToX) return
@@ -217,8 +219,8 @@ export default function App() {
     const a = kmToX(0)
     const b = kmToX(1) - a
     const len = currentRoad?.lengthKm || 0
-    const x = e.clientX - rect.left
-    let km = (x - a) / b
+    const rawX = e.clientX - rect.left
+    let px = Math.round(rawX)
 
     const bandEl = e.target.closest('[data-band-key]')
     const bandKey = bandEl?.getAttribute('data-band-key') || null
@@ -226,25 +228,32 @@ export default function App() {
 
     if (showGuide && bandKey) {
       const arr = bandArrayByKey(layers, bandKey)
-      const thresholdKm = HANDLE_HIT / Math.max(1e-6, b)
+      let snapped = false
       for (const r of arr) {
         for (const seamKm of [r.startKm, r.endKm]) {
           if (seamKm <= fromKm || seamKm >= toKm) continue
-          if (Math.abs(seamKm - km) <= thresholdKm) {
-            km = seamKm
+          const seamPx = Math.round(kmToX(seamKm))
+          if (Math.abs(seamPx - rawX) <= SNAP_PX) {
+            px = seamPx
+            snapped = true
             break
           }
         }
+        if (snapped) break
       }
     }
 
-    setHoverKm(Math.max(0, Math.min(len, km)))
+    let km = (px - a) / b
+    km = Math.max(0, Math.min(len, km))
+    setHoverKm(km)
+    setHoverLeft(px)
   }
 
   const handlePanelMouseLeave = () => {
     hoverClientX.current = null
     hoverBandKey.current = null
     setHoverKm(null)
+    setHoverLeft(null)
   }
 
   const handlePanelScroll = (e) => {
@@ -253,25 +262,31 @@ export default function App() {
     const a = kmToX(0)
     const b = kmToX(1) - a
     const len = currentRoad?.lengthKm || 0
-    const x = hoverClientX.current - rect.left
-    let km = (x - a) / b
+    const rawX = hoverClientX.current - rect.left
+    let px = Math.round(rawX)
 
     const bandKey = hoverBandKey.current
     if (showGuide && bandKey) {
       const arr = bandArrayByKey(layers, bandKey)
-      const thresholdKm = HANDLE_HIT / Math.max(1e-6, b)
+      let snapped = false
       for (const r of arr) {
         for (const seamKm of [r.startKm, r.endKm]) {
           if (seamKm <= fromKm || seamKm >= toKm) continue
-          if (Math.abs(seamKm - km) <= thresholdKm) {
-            km = seamKm
+          const seamPx = Math.round(kmToX(seamKm))
+          if (Math.abs(seamPx - rawX) <= SNAP_PX) {
+            px = seamPx
+            snapped = true
             break
           }
         }
+        if (snapped) break
       }
     }
 
-    setHoverKm(Math.max(0, Math.min(len, km)))
+    let km = (px - a) / b
+    km = Math.max(0, Math.min(len, km))
+    setHoverKm(km)
+    setHoverLeft(px)
   }
 
   const handlePanelWheel = (e) => {
