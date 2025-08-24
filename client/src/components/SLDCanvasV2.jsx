@@ -458,19 +458,9 @@ export default function SLDCanvasV2({
         if (lbl) {
           ctx.font = '11px system-ui'
           const textW = ctx.measureText(lbl).width
-          const padding = lbl === 'CAAC' ? 4 : 2
+          const padding = 2
           if (textW + padding * 2 <= ww) {
-            if (lbl === 'CAAC') {
-              const rectW = textW + padding * 2
-              const rectH = 16
-              const rectX = x1 + (ww - rectW) / 2
-              const rectY = trackY + (trackH - rectH) / 2
-              ctx.fillStyle = '#282828'
-              ctx.fillRect(rectX, rectY, rectW, rectH)
-              ctx.fillStyle = '#fff'
-            } else {
-              ctx.fillStyle = textColorFn ? textColorFn(r) : '#fff'
-            }
+            ctx.fillStyle = textColorFn ? textColorFn(r) : '#fff'
             ctx.textAlign = 'center'
             ctx.fillText(lbl, x1 + ww / 2, trackY + (trackH / 2) + 3)
             ctx.textAlign = 'left'
