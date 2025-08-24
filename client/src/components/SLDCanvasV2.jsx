@@ -446,10 +446,10 @@ export default function SLDCanvasV2({
             if (lbl === 'CAAC') {
               const padding = 2
               const rectW = textW + padding * 2
-              const rectH = 14
+              const rectH = 12
               const rectX = x1 + (ww - rectW) / 2
               const rectY = trackY + (trackH - rectH) / 2
-              ctx.fillStyle = '#a1a1a1'
+              ctx.fillStyle = '#282828'
               ctx.fillRect(rectX, rectY, rectW, rectH)
               ctx.fillStyle = '#fff'
             } else {
