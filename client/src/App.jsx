@@ -44,6 +44,7 @@ export default function App() {
   const [hoverKm, setHoverKm] = useState(null)
   const [hoverLeft, setHoverLeft] = useState(null)
   const [scale, setScale] = useState(null)
+  const [layout, setLayout] = useState(null)
   const hoverClientX = useRef(null)
   const hoverBandKey = useRef(null)
   const contentRef = useRef(null)
@@ -397,6 +398,7 @@ export default function App() {
                   showGuide={showGuide}
                   onHoverKm={setHoverKm}
                   onScale={setScale}
+                  onLayout={setLayout}
                 />
               </div>
             </div>
@@ -419,19 +421,20 @@ export default function App() {
                 style={{
                   position:'absolute',
                   left:guideLeft,
-                  top:0,
+                  top: (layout ? layout.axisY : 0) - 8,
                   transform:'translate(-50%, -100%)',
                   background:'rgba(0,0,0,0.7)',
                   color:'#fff',
-                  borderRadius:9999,
-                  padding:'0 6px',
-                  fontSize:12,
-                  whiteSpace:'nowrap',
+                  borderRadius:4,
+                  padding:'2px 4px',
+                  fontSize:11,
                   pointerEvents:'none',
+                  textAlign:'center',
                   zIndex:40,
                 }}
               >
-                {formatLRP(activeKm + (currentSection?.startKm || 0), layers?.kmPosts)} ({formatChainage((activeKm + (currentSection?.startKm || 0)) * 1000)} m)
+                <div>{formatLRP(activeKm + (currentSection?.startKm || 0), layers?.kmPosts)}</div>
+                <div>{formatChainage(Math.round((activeKm + (currentSection?.startKm || 0)) * 1000))}</div>
               </div>
             )}
           </div>
