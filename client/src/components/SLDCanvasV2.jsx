@@ -68,6 +68,15 @@ function fillDiagonalStripes(ctx, x, y, w, h, light, dark, pitch = 20) {
   ctx.restore()
 }
 
+function fillCAAC(ctx, x, y, w, h) {
+  const q = h / 4
+  ctx.fillStyle = '#a1a1a1'
+  ctx.fillRect(x, y, w, q)
+  ctx.fillRect(x, y + 3 * q, w, q)
+  ctx.fillStyle = '#282828'
+  ctx.fillRect(x, y + q, w, h - 2 * q)
+}
+
 
 export default function SLDCanvasV2({
   road,
@@ -431,8 +440,15 @@ export default function SLDCanvasV2({
         const x2 = Math.round(kmToX(Math.min(r.endKm, toKm)))
         const ww = Math.max(1, x2 - x1)
         const fill = colorFn(r)
-        if (fill && typeof fill === 'object' && fill.type === 'stripes') {
-          fillDiagonalStripes(ctx, x1, trackY, ww, trackH, fill.light, fill.dark, fill.pitch)
+        if (fill && typeof fill === 'object') {
+          if (fill.type === 'stripes') {
+            fillDiagonalStripes(ctx, x1, trackY, ww, trackH, fill.light, fill.dark, fill.pitch)
+          } else if (fill.type === 'caac') {
+            fillCAAC(ctx, x1, trackY, ww, trackH)
+          } else {
+            ctx.fillStyle = '#bdbdbd'
+            ctx.fillRect(x1, trackY, ww, trackH)
+          }
         } else {
           ctx.fillStyle = fill || '#bdbdbd'
           ctx.fillRect(x1, trackY, ww, trackH)
@@ -485,7 +501,7 @@ export default function SLDCanvasV2({
             layers?.surface,
             r => (
               r.surfacePerLane === 'CAAC'
-                ? { type: 'stripes', light: '#a1a1a1', dark: '#282828', pitch: 20 }
+                ? { type: 'caac' }
                 : (SURFACE_COLORS[r.surface] || '#bdbdbd')
             ),
             r => r.surfacePerLane || r.surface
