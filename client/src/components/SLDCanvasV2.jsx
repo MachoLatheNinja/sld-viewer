@@ -90,22 +90,37 @@ export default function SLDCanvasV2({
   onLayout,
 }) {
   const canvasRef = useRef(null)
-  const [panX, setPanX] = useState(0)
   const [zoom, setZoom] = useState(80)
 
   const rafRef      = useRef(0)
   const helpersRef  = useRef({ kmToX:(km)=>km, xToKm:(x)=>x })
   const dragRef     = useRef(null)
+  const pendingDomainRef = useRef({ from: 0, to: 0 })
+  const domainRafRef = useRef(0)
   const lengthKm = Number(road?.lengthKm || 0)
   const fromKm = Math.max(0, domain?.fromKm ?? 0)
   const toKm   = Math.min(lengthKm, domain?.toKm ?? lengthKm)
+
+  const queueDomainChange = (from, to) => {
+    pendingDomainRef.current = { from, to }
+    if (!domainRafRef.current) {
+      domainRafRef.current = requestAnimationFrame(() => {
+        domainRafRef.current = 0
+        const { from:f, to:t } = pendingDomainRef.current
+        onDomainChange(f, t)
+      })
+    }
+  }
+
+  useEffect(() => {
+    pendingDomainRef.current = { from: fromKm, to: toKm }
+  }, [fromKm, toKm])
 
   useEffect(()=>{
     const el = canvasRef.current; if(!el) return
     const w = el.clientWidth || 1200
     const desiredZoom = w / Math.max(0.001, (toKm - fromKm))
     setZoom(desiredZoom)
-    setPanX(-fromKm * desiredZoom)
   }, [fromKm, toKm, lengthKm])
 
   const layout = useMemo(()=>{
@@ -558,7 +573,7 @@ export default function SLDCanvasV2({
         useEffect(() => {
           cancelAnimationFrame(rafRef.current)
           rafRef.current = requestAnimationFrame(() => draw())
-        }, [fromKm, toKm, panX, zoom, layout, layers]) // eslint-disable-line react-hooks/exhaustive-deps
+        }, [fromKm, toKm, zoom, layout, layers]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------- interactions ----------
   const bandArrayByKey = (key) => {
@@ -638,7 +653,7 @@ export default function SLDCanvasV2({
     if (newFrom < 0) { newTo -= newFrom; newFrom = 0 }
     if (newTo > lengthKm) { newFrom -= (newTo - lengthKm); newTo = lengthKm }
     if (newTo <= newFrom) return
-    onDomainChange(newFrom, newTo)
+    queueDomainChange(newFrom, newTo)
   }
 
   const onMouseDown = (e) => {
@@ -684,7 +699,7 @@ export default function SLDCanvasV2({
       if (nf < 0) { nt -= nf; nf = 0 }
       if (nt > lengthKm) { nf -= (nt - lengthKm); nt = lengthKm }
       if (nt <= nf) return
-      onDomainChange(nf, nt)
+      queueDomainChange(nf, nt)
     } else if (drag.type === 'seam') {
       if (!drag.moved && Math.abs(x - drag.startX) > 2) drag.moved = true
     }

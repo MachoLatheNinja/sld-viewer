@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchRoads, fetchLayers, moveBandSeam } from './api'
 import ControlBar from './components/ControlBar'
 import SLDCanvasV2 from './components/SLDCanvasV2'
@@ -44,6 +44,7 @@ export default function App() {
   const [hoverKm, setHoverKm] = useState(null)
   const [hoverLeft, setHoverLeft] = useState(null)
   const [scale, setScale] = useState(null)
+  const [layout, setLayout] = useState(null)
   const hoverClientX = useRef(null)
   const hoverBandKey = useRef(null)
   const contentRef = useRef(null)
@@ -294,10 +295,10 @@ export default function App() {
     setHoverLeft(px)
   }
 
-  const handlePanelWheel = (e) => {
+  const handlePanelWheel = useCallback((e) => {
     if (!scale) return
     e.preventDefault()
-    const rect = e.currentTarget.getBoundingClientRect()
+    const rect = (e.currentTarget || contentRef.current).getBoundingClientRect()
     const a = scale.cssLeftFromM(0)
     const b = scale.pxPerM * 1000
     const x = e.clientX - rect.left - LABEL_W
@@ -314,7 +315,14 @@ export default function App() {
     if (newTo <= newFrom) return
     setFromKm(newFrom)
     setToKm(newTo)
-  }
+  }, [scale, currentRoad, fromKm, toKm, setFromKm, setToKm])
+
+  useEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+    el.addEventListener('wheel', handlePanelWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handlePanelWheel)
+  }, [handlePanelWheel])
 
   return (
     <div style={{ fontFamily:'Inter, system-ui, Arial', background:'#f0f2f5', minHeight:'100vh' }}>
@@ -362,11 +370,10 @@ export default function App() {
           </div>
           <div
             ref={contentRef}
-            style={{ position:'relative', overflowX:'auto' }}
+            style={{ position:'relative', overflowX:'auto', overflowY:'visible' }}
             onMouseMove={handlePanelMouseMove}
             onMouseLeave={handlePanelMouseLeave}
             onScroll={handlePanelScroll}
-            onWheel={handlePanelWheel}
           >
             <div style={{ display:'flex' }}>
               <div
@@ -391,6 +398,7 @@ export default function App() {
                   showGuide={showGuide}
                   onHoverKm={setHoverKm}
                   onScale={setScale}
+                  onLayout={setLayout}
                 />
               </div>
             </div>
@@ -413,19 +421,20 @@ export default function App() {
                 style={{
                   position:'absolute',
                   left:guideLeft,
-                  top:0,
+                  top: (layout ? layout.axisY : 0) - 8,
                   transform:'translate(-50%, -100%)',
                   background:'rgba(0,0,0,0.7)',
                   color:'#fff',
-                  borderRadius:9999,
-                  padding:'0 6px',
-                  fontSize:12,
-                  whiteSpace:'nowrap',
+                  borderRadius:4,
+                  padding:'2px 4px',
+                  fontSize:11,
                   pointerEvents:'none',
+                  textAlign:'center',
                   zIndex:40,
                 }}
               >
-                {formatLRP(activeKm, layers?.kmPosts)} ({formatChainage(activeKm * 1000)} m)
+                <div>{formatLRP(activeKm + (currentSection?.startKm || 0), layers?.kmPosts)}</div>
+                <div>{formatChainage(Math.round((activeKm + (currentSection?.startKm || 0)) * 1000))}</div>
               </div>
             )}
           </div>
