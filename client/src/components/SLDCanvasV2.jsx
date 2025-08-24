@@ -217,7 +217,9 @@ export default function SLDCanvasV2({
     const startM = fromKm * 1000
     const pxPerM = zoom / 1000
     const scale = createMeterScale(startM, pxPerM)
-    const kmToX = (km) => scale.cssLeftFromM(km * 1000)
+    const strokeXFromKm = (km) => scale.strokeXFromM(km * 1000)
+    const rectPxFromKm = (a, b) => scale.rectPx(a * 1000, b * 1000)
+    const kmToX = strokeXFromKm
     const xToKm = (x) => (x / scale.pxPerM + scale.startM) / 1000
     helpersRef.current = { kmToX, xToKm, ...scale }
     onScale?.(scale)
@@ -228,7 +230,8 @@ export default function SLDCanvasV2({
     ctx.fillRect(0,0,w,h)
 
     // ROAD strip (no seam lines)
-    const xStart = kmToX(fromKm), xEnd = kmToX(toKm)
+    const { x: xStart, w: roadW } = rectPxFromKm(fromKm, toKm)
+    const xEnd = xStart + roadW
 
     // Build breakpoints where lane count or surface changes to reduce
     // the amount of drawing work. This keeps panning responsive even on
@@ -255,8 +258,8 @@ export default function SLDCanvasV2({
       const yTop = centerY - laneW * lanesTop
       const yBot = centerY + laneW * lanesBottom
       const { surface: surf, surfacePerLane } = surfaceAt(midKm)
-      const x1 = kmToX(startKm)
-      const x2 = kmToX(endKm)
+      const { x: x1, w: segW } = rectPxFromKm(startKm, endKm)
+      const x2 = x1 + segW
 
       if (surfacePerLane && surfacePerLane.length >= lanes) {
         for (let lane = 0; lane < lanes; lane++) {
@@ -266,24 +269,12 @@ export default function SLDCanvasV2({
           const y1 = yTop + laneW * lane
           const y2 = y1 + laneW
           ctx.fillStyle = color
-          ctx.beginPath()
-          ctx.moveTo(x1 - 0.5, Math.floor(y1) + 0.5)
-          ctx.lineTo(x2 + 0.5, Math.floor(y1) + 0.5)
-          ctx.lineTo(x2 + 0.5, Math.ceil(y2) + 0.5)
-          ctx.lineTo(x1 - 0.5, Math.ceil(y2) + 0.5)
-          ctx.closePath()
-          ctx.fill()
+          ctx.fillRect(x1, Math.floor(y1), segW, Math.ceil(y2) - Math.floor(y1))
         }
       } else {
         const color = SURFACE_COLORS[surf] || '#707070'
         ctx.fillStyle = color
-        ctx.beginPath()
-        ctx.moveTo(x1 - 0.5, Math.floor(yTop) + 0.5)
-        ctx.lineTo(x2 + 0.5, Math.floor(yTop) + 0.5)
-        ctx.lineTo(x2 + 0.5, Math.ceil(yBot) + 0.5)
-        ctx.lineTo(x1 - 0.5, Math.ceil(yBot) + 0.5)
-        ctx.closePath()
-        ctx.fill()
+        ctx.fillRect(x1, Math.floor(yTop), segW, Math.ceil(yBot) - Math.floor(yTop))
       }
     }
 
@@ -302,8 +293,8 @@ export default function SLDCanvasV2({
         const laneW = thickness / lanes
         const lanesTop = biasIsTop(sideBias) ? Math.ceil(lanes / 2) : Math.floor(lanes / 2)
         const yTop = centerY - laneW * lanesTop
-        const x1 = kmToX(startKm)
-        const x2 = kmToX(endKm)
+        const { x: x1, w: segW } = rectPxFromKm(startKm, endKm)
+        const x2 = x1 + segW
         for (let lane = 1; lane < lanes; lane++) {
           const y = yTop + laneW * lane
           if (Math.abs(y - centerY) < 0.1) continue
@@ -318,8 +309,8 @@ export default function SLDCanvasV2({
       if (r.endKm < fromKm || r.startKm > toKm) continue
       const startKm = Math.max(fromKm, r.startKm)
       const endKm = Math.min(toKm, r.endKm)
-      const x1 = kmToX(startKm)
-      const x2 = kmToX(endKm)
+      const { x: x1, w: segW } = rectPxFromKm(startKm, endKm)
+      const x2 = x1 + segW
       const midKm = (startKm + endKm) / 2
       const { lanes, sideBias } = laneInfoAt(midKm)
       const thickness = Math.max(18, lanes * (LANE_UNIT * 0.9))
@@ -552,7 +543,7 @@ export default function SLDCanvasV2({
     }
 
     for (const p of kmPosts) {
-      const x = kmToX(p.chainageKm)
+      const x = scale.cssLeftFromM(p.chainageKm * 1000)
       const label = p.lrp?.replace(/^\s*KM\s*/i, '') ?? Math.round(p.chainageKm)
       drawKmPost(ctx, x, layout.kmPostY, label)
     }
