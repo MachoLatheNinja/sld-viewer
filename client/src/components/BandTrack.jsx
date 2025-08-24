@@ -53,12 +53,27 @@ export default function BandTrack({ band, layers, domain, activeKm, guideLeft, c
         if (label) {
           const textW = ctx.measureText(label).width
           if (segW >= textW + 4) {
-            ctx.fillStyle = '#000'
+            ctx.fillStyle = '#fff'
+            ctx.textAlign = 'center'
+            ctx.fillText(label, x + segW / 2, h / 2)
             ctx.textAlign = 'left'
-            ctx.fillText(label, x + 2, h / 2)
           }
         }
       })
+
+      if (band.key !== 'bridges') {
+        ctx.strokeStyle = '#fff'
+        ctx.lineWidth = 1
+        for (let i = 0; i < (ranges || []).length - 1; i++) {
+          const seamKm = ranges[i].endKm
+          if (seamKm <= fromKm || seamKm >= toKm) continue
+          const x = scale.strokeXFromM(seamKm * 1000)
+          ctx.beginPath()
+          ctx.moveTo(x, 0)
+          ctx.lineTo(x, h)
+          ctx.stroke()
+        }
+      }
     }
 
     switch (band.key) {
@@ -104,7 +119,6 @@ export default function BandTrack({ band, layers, domain, activeKm, guideLeft, c
     const trackRect = trackRef.current.getBoundingClientRect()
     const contentRect = contentRef.current.getBoundingClientRect()
     left = guideLeft - trackRect.left + contentRect.left
-    left = Math.round(left)
   }
 
   const baseStyle = {

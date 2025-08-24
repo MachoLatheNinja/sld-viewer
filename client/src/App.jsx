@@ -209,7 +209,7 @@ export default function App() {
 
   const activeKm = guideKm ?? (showGuide ? hoverKm : null)
   const guideTrackLeft = guideKm != null
-    ? (scale ? Math.round(scale.cssLeftFromM(guideKm * 1000)) : null)
+    ? (scale ? scale.strokeXFromM(guideKm * 1000) : null)
     : hoverLeft
   const guideLeft = guideTrackLeft != null ? LABEL_W + guideTrackLeft : null
 
@@ -227,15 +227,17 @@ export default function App() {
     const bandKey = bandEl?.getAttribute('data-band-key') || null
     hoverBandKey.current = bandKey
 
+    let snappedKm = null
     if (showGuide && bandKey) {
       const arr = bandArrayByKey(layers, bandKey)
       let snapped = false
       for (const r of arr) {
         for (const seamKm of [r.startKm, r.endKm]) {
           if (seamKm <= fromKm || seamKm >= toKm) continue
-          const seamPx = Math.round(scale.cssLeftFromM(seamKm * 1000))
+          const seamPx = scale.strokeXFromM(seamKm * 1000)
           if (Math.abs(seamPx - rawX) <= SNAP_PX) {
             px = seamPx
+            snappedKm = seamKm
             snapped = true
             break
           }
@@ -244,7 +246,7 @@ export default function App() {
       }
     }
 
-    let km = (px - a) / b
+    let km = snappedKm != null ? snappedKm : (px - a) / b
     km = Math.max(0, Math.min(len, km))
     setHoverKm(km)
     setHoverLeft(px)
@@ -267,15 +269,17 @@ export default function App() {
     let px = Math.round(rawX)
 
     const bandKey = hoverBandKey.current
+    let snappedKm = null
     if (showGuide && bandKey) {
       const arr = bandArrayByKey(layers, bandKey)
       let snapped = false
       for (const r of arr) {
         for (const seamKm of [r.startKm, r.endKm]) {
           if (seamKm <= fromKm || seamKm >= toKm) continue
-          const seamPx = Math.round(scale.cssLeftFromM(seamKm * 1000))
+          const seamPx = scale.strokeXFromM(seamKm * 1000)
           if (Math.abs(seamPx - rawX) <= SNAP_PX) {
             px = seamPx
+            snappedKm = seamKm
             snapped = true
             break
           }
@@ -284,7 +288,7 @@ export default function App() {
       }
     }
 
-    let km = (px - a) / b
+    let km = snappedKm != null ? snappedKm : (px - a) / b
     km = Math.max(0, Math.min(len, km))
     setHoverKm(km)
     setHoverLeft(px)
