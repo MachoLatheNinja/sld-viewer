@@ -442,11 +442,11 @@ export default function SLDCanvasV2({
         if (lbl) {
           ctx.font = '11px system-ui'
           const textW = ctx.measureText(lbl).width
-          if (textW + 4 <= ww) {
+          const padding = lbl === 'CAAC' ? 4 : 2
+          if (textW + padding * 2 <= ww) {
             if (lbl === 'CAAC') {
-              const padding = 2
               const rectW = textW + padding * 2
-              const rectH = 12
+              const rectH = 16
               const rectX = x1 + (ww - rectW) / 2
               const rectY = trackY + (trackH - rectH) / 2
               ctx.fillStyle = '#282828'
