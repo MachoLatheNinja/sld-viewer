@@ -3,7 +3,7 @@ const cors = require('cors')
 const bodyParser = require('body-parser')
 require('dotenv').config({ path: './.env' })
 
-const { PrismaClient } = require('@prisma/client')
+const { PrismaClient, Prisma } = require('@prisma/client')
 const prisma = new PrismaClient()
 
 const app = express()
@@ -71,7 +71,7 @@ app.get('/api/roads/:id/layers', async (req, res) => {
     prisma.municipalityBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
     prisma.bridgeBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
     prisma.kmPost.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ chainageM:'asc' }, { id:'asc' }] }),
-    prisma.gaaMiow.findMany({ where: { infra_id: { in: sectionIds } }, orderBy: [{ infra_year: 'desc' }, { start_chainage: 'asc' }] }),
+    prisma.$queryRaw`SELECT * FROM gaa_miow WHERE infra_id IN (${Prisma.join(sectionIds)}) ORDER BY infra_year DESC, start_chainage ASC`,
   ])
 
   const miowBands = miow.map(r => ({
