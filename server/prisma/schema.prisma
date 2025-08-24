@@ -7,165 +7,156 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ---- Core entities ----------------------------------------------------------
-
 model Road {
-  id       String @id
-  name     String
-  lengthM  Float
-
-  // back-relations (required so Prisma is happy)
-  segments          Segment[]
-  sections          Section[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        String    @id @default(dbgenerated("(nextval('\"Road_id_seq\"'::regclass))::text"))
+  name      String
+  lengthM   Float
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  sections  Section[]
+  segments  Segment[]
 }
 
 model Segment {
-    id         Int      @id @default(autoincrement())
-    roadId     String
-    startM     Float
-    endM       Float
-    surface    String?
-    lanesLeft  Int?
-    lanesRight Int?
-    status     String?
-    quality    String?
-    road       Road     @relation(fields: [roadId], references: [id])
-    createdAt  DateTime @default(now())
-    updatedAt  DateTime @updatedAt
+  id         Int      @id @default(autoincrement())
+  roadId     String
+  startM     Float
+  endM       Float
+  surface    String?
+  lanesLeft  Int?
+  lanesRight Int?
+  status     String?
+  quality    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  road       Road     @relation(fields: [roadId], references: [id])
 
   @@index([roadId, startM, endM])
 }
 
 model Section {
-  id       String   @id
-  roadId   String
-  startM   Float
-  endM     Float
-  road     Road     @relation(fields: [roadId], references: [id])
-  surfaceBands      SurfaceBand[]
+  id                String             @id @default(dbgenerated("nextval('\"Section_id_seq\"'::regclass)"))
+  roadId            String
+  startM            Float
+  endM              Float
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
   aadtBands         AadtBand[]
-  statusBands       StatusBand[]
-  qualityBands      QualityBand[]
-  lanesBands        LanesBand[]
-  rowWidthBands     RowWidthBand[]
-  municipalityBands MunicipalityBand[]
   bridgeBands       BridgeBand[]
   kmPosts           KmPost[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  lanesBands        LanesBand[]
+  municipalityBands MunicipalityBand[]
+  qualityBands      QualityBand[]
+  rowWidthBands     RowWidthBand[]
+  road              Road               @relation(fields: [roadId], references: [id])
+  statusBands       StatusBand[]
+  surfaceBands      SurfaceBand[]
 
   @@index([roadId, startM, endM])
 }
 
-// ---- Per-band range tables --------------------------------------------------
-
 model SurfaceBand {
-  id        Int    @id @default(autoincrement())
-  sectionId String @map("section_id")
-  startM    Float
-  endM      Float
-  surface   String
+  id             Int     @id @default(autoincrement())
+  sectionId      String  @map("section_id")
+  startM         Float
+  endM           Float
+  surface        String
   surfacePerLane String? @map("surface_per_lane")
-  section   Section @relation(fields: [sectionId], references: [id])
+  section        Section @relation(fields: [sectionId], references: [id], onDelete: NoAction)
 
   @@index([sectionId, startM, endM])
 }
 
 model AadtBand {
-  id        Int   @id @default(autoincrement())
-  sectionId String @map("section_id")
+  id        Int     @id @default(autoincrement())
+  sectionId String  @map("section_id")
   startM    Float
   endM      Float
   aadt      Int
-  section   Section @relation(fields: [sectionId], references: [id])
+  section   Section @relation(fields: [sectionId], references: [id], onDelete: NoAction)
 
   @@index([sectionId, startM, endM])
 }
 
 model StatusBand {
-  id        Int    @id @default(autoincrement())
-  sectionId String @map("section_id")
+  id        Int     @id @default(autoincrement())
+  sectionId String  @map("section_id")
   startM    Float
   endM      Float
   status    String
-  section   Section @relation(fields: [sectionId], references: [id])
+  section   Section @relation(fields: [sectionId], references: [id], onDelete: NoAction)
 
   @@index([sectionId, startM, endM])
 }
 
 model QualityBand {
-  id        Int    @id @default(autoincrement())
-  sectionId String @map("section_id")
-  startM    Float
-  endM      Float
-  quality   String
-  section   Section @relation(fields: [sectionId], references: [id])
-
-  @@index([sectionId, startM, endM])
-}
-
-// Which side gets the extra lane when LanesBand.lanes is odd
-enum SideBias {
-  LS @map("L/S")
-  RS @map("R/S")
-}
-
-model LanesBand {
   id        Int      @id @default(autoincrement())
   sectionId String   @map("section_id")
   startM    Float
   endM      Float
+  quality   String
+  VCI       Decimal? @db.Decimal
+  section   Section  @relation(fields: [sectionId], references: [id], onDelete: NoAction)
+
+  @@index([sectionId, startM, endM])
+}
+
+model LanesBand {
+  id        Int       @id @default(autoincrement())
+  sectionId String    @map("section_id")
+  startM    Float
+  endM      Float
   lanes     Int
-  sideBias  SideBias @default(LS)
-  section   Section  @relation(fields: [sectionId], references: [id])
+  sideBias  SideBias? @default(LS)
+  section   Section   @relation(fields: [sectionId], references: [id], onDelete: NoAction)
 
   @@index([sectionId, startM, endM])
 }
 
 model RowWidthBand {
-  id        Int    @id @default(autoincrement())
-  sectionId String @map("section_id")
+  id        Int     @id @default(autoincrement())
+  sectionId String  @map("section_id")
   startM    Float
   endM      Float
   rowWidthM Int
-  section   Section @relation(fields: [sectionId], references: [id])
+  section   Section @relation(fields: [sectionId], references: [id], onDelete: NoAction)
 
   @@index([sectionId, startM, endM])
 }
 
 model MunicipalityBand {
-  id        Int    @id @default(autoincrement())
-  sectionId String @map("section_id")
+  id        Int     @id @default(autoincrement())
+  sectionId String  @map("section_id")
   startM    Float
   endM      Float
   name      String
-  section   Section @relation(fields: [sectionId], references: [id])
+  section   Section @relation(fields: [sectionId], references: [id], onDelete: NoAction)
 
   @@index([sectionId, startM, endM])
 }
 
 model BridgeBand {
-  id        Int    @id @default(autoincrement())
-  sectionId String @map("section_id")
+  id        Int     @id @default(autoincrement())
+  sectionId String  @map("section_id")
   startM    Float
   endM      Float
   name      String
-  section   Section @relation(fields: [sectionId], references: [id])
+  section   Section @relation(fields: [sectionId], references: [id], onDelete: NoAction)
 
   @@index([sectionId, startM, endM])
 }
-
-// ---- Point events -----------------------------------------------------------
 
 model KmPost {
   id        Int     @id @default(autoincrement())
   sectionId String  @map("section_id")
   chainageM Float
   lrp       String
-  section   Section @relation(fields: [sectionId], references: [id])
+  section   Section @relation(fields: [sectionId], references: [id], onDelete: NoAction)
 
   @@index([sectionId, chainageM])
+}
+
+enum SideBias {
+  LS @map("L/S")
+  RS @map("R/S")
 }

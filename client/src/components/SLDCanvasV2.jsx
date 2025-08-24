@@ -4,7 +4,7 @@ import { parseLrpKm, formatLRP } from '../lrp'
 
 const SURFACE_COLORS = { Asphalt:'#282828', Concrete:'#a1a1a1', Gravel:'#8d6e63' }
 const LANE_SURFACE_MAP = { A:'Asphalt', C:'Concrete', G:'Gravel' }
-const QUALITY_COLORS = { Poor:'#e53935', Fair:'#fb8c00', Good:'#43a047', Excellent:'#1e88e5' }
+const QUALITY_COLORS = { Poor:'#ffb54c', Fair:'#f8d66d', Good:'#7abd7e', Bad:'#ff6961' }
 const STATUS_COLORS  = { Open:'#9e9e9e', Closed:'#d32f2f' }
 
 const LANE_ROW_H = 126
@@ -35,10 +35,10 @@ function formatChainage(m){
 
 function laneColor(lanes) {
   const min = 2
-  const max = 10
+  const max = 8
   const t = Math.min(1, Math.max(0, (lanes - min) / (max - min)))
-  const start = [0xA9, 0xD6, 0xE5] // #A9D6E5
-  const end = [0x01, 0x24, 0xA4]   // #0124A4
+  const start = [0x9E, 0xCA, 0xE1] // #9ecae1
+  const end = [0x08, 0x30, 0x6B]   // #08306b
   const [r, g, b] = start.map((s, i) => Math.round(s + t * (end[i] - s)))
   return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`
 }
