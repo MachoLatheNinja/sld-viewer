@@ -670,6 +670,7 @@ export default function SLDCanvasV2({
 
   const onWheel = (e) => {
     e.preventDefault()
+    e.stopPropagation()
     const { xToKm } = helpersRef.current
     const { offsetX } = e.nativeEvent
     const mouseKm = xToKm(offsetX)

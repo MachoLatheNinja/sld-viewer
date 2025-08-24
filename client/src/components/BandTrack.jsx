@@ -125,7 +125,7 @@ export default function BandTrack({ band, layers, domain, activeKm, guideLeft, c
   }
 
   return (
-    <div ref={trackRef} style={{ position:'relative', height, overflow:'visible' }}>
+    <div ref={trackRef} data-band-key={band.key} style={{ position:'relative', height, overflow:'visible' }}>
       <canvas ref={canvasRef} style={{ width:'100%', height }} />
       {label && left != null && (
         <div

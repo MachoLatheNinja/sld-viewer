@@ -2,11 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { fetchRoads, fetchLayers, moveBandSeam } from './api'
 import ControlBar from './components/ControlBar'
 import SLDCanvasV2 from './components/SLDCanvasV2'
-import { DEFAULT_BAND_GROUPS } from './bands'
+import { DEFAULT_BAND_GROUPS, bandArrayByKey } from './bands'
 import BandAccordion from './components/BandAccordion'
 import { lrpToChainageKm, formatLRP } from './lrp'
 
 const EPS = 1e-6
+const HANDLE_HIT = 6 // px tolerance for snapping to seams
 
 function mergeRanges(arr = [], props) {
   if (!arr.length) return []
@@ -43,6 +44,7 @@ export default function App() {
   const [hoverKm, setHoverKm] = useState(null)
   const [kmToX, setKmToX] = useState(null)
   const hoverClientX = useRef(null)
+  const hoverBandKey = useRef(null)
   const contentRef = useRef(null)
 
   const [fromKm, setFromKm] = useState(0)
@@ -216,12 +218,32 @@ export default function App() {
     const b = kmToX(1) - a
     const len = currentRoad?.lengthKm || 0
     const x = e.clientX - rect.left
-    const km = (x - a) / b
+    let km = (x - a) / b
+
+    const bandEl = e.target.closest('[data-band-key]')
+    const bandKey = bandEl?.getAttribute('data-band-key') || null
+    hoverBandKey.current = bandKey
+
+    if (showGuide && bandKey) {
+      const arr = bandArrayByKey(layers, bandKey)
+      const thresholdKm = HANDLE_HIT / Math.max(1e-6, b)
+      for (const r of arr) {
+        for (const seamKm of [r.startKm, r.endKm]) {
+          if (seamKm <= fromKm || seamKm >= toKm) continue
+          if (Math.abs(seamKm - km) <= thresholdKm) {
+            km = seamKm
+            break
+          }
+        }
+      }
+    }
+
     setHoverKm(Math.max(0, Math.min(len, km)))
   }
 
   const handlePanelMouseLeave = () => {
     hoverClientX.current = null
+    hoverBandKey.current = null
     setHoverKm(null)
   }
 
@@ -232,8 +254,46 @@ export default function App() {
     const b = kmToX(1) - a
     const len = currentRoad?.lengthKm || 0
     const x = hoverClientX.current - rect.left
-    const km = (x - a) / b
+    let km = (x - a) / b
+
+    const bandKey = hoverBandKey.current
+    if (showGuide && bandKey) {
+      const arr = bandArrayByKey(layers, bandKey)
+      const thresholdKm = HANDLE_HIT / Math.max(1e-6, b)
+      for (const r of arr) {
+        for (const seamKm of [r.startKm, r.endKm]) {
+          if (seamKm <= fromKm || seamKm >= toKm) continue
+          if (Math.abs(seamKm - km) <= thresholdKm) {
+            km = seamKm
+            break
+          }
+        }
+      }
+    }
+
     setHoverKm(Math.max(0, Math.min(len, km)))
+  }
+
+  const handlePanelWheel = (e) => {
+    if (!kmToX) return
+    e.preventDefault()
+    const rect = e.currentTarget.getBoundingClientRect()
+    const a = kmToX(0)
+    const b = kmToX(1) - a
+    const x = e.clientX - rect.left
+    const mouseKm = (x - a) / b
+    const length = currentRoad?.lengthKm || 0
+    const currSpan = Math.max(0.001, toKm - fromKm)
+    const factor = Math.exp(e.deltaY * 0.001)
+    let newSpan = Math.min(length, Math.max(0.05, currSpan * factor))
+    const leftFrac = (mouseKm - fromKm) / currSpan
+    let newFrom = mouseKm - leftFrac * newSpan
+    let newTo = newFrom + newSpan
+    if (newFrom < 0) { newTo -= newFrom; newFrom = 0 }
+    if (newTo > length) { newFrom -= (newTo - length); newTo = length }
+    if (newTo <= newFrom) return
+    setFromKm(newFrom)
+    setToKm(newTo)
   }
 
   return (
@@ -286,6 +346,7 @@ export default function App() {
             onMouseMove={handlePanelMouseMove}
             onMouseLeave={handlePanelMouseLeave}
             onScroll={handlePanelScroll}
+            onWheel={handlePanelWheel}
           >
             <SLDCanvasV2
               road={currentRoad}
