@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
+import BandTrack from './BandTrack'
 
-export default function BandAccordion({ groups = [] }) {
+export default function BandAccordion({ groups = [], layers, domain }) {
   const [open, setOpen] = useState(() => new Set(groups.map(g => g.key)))
 
   const toggle = (key) => {
@@ -34,9 +35,14 @@ export default function BandAccordion({ groups = [] }) {
           {open.has(g.key) && (
             <div style={{ padding:'4px 12px 8px 24px' }}>
               {g.bands.map(b => (
-                <div key={b.key} style={{ display:'flex', alignItems:'center', margin:'4px 0', border:'1px solid #e0e0e0', borderRadius:4, background:'#fafafa' }}>
-                  <div style={{ width:4, alignSelf:'stretch', background:'#90caf9' }} />
-                  <div style={{ padding:'4px 8px' }}>{b.title}</div>
+                <div key={b.key} style={{ margin:'4px 0', border:'1px solid #e0e0e0', borderRadius:4, background:'#fafafa' }}>
+                  <div style={{ display:'flex' }}>
+                    <div style={{ width:4, background:'#90caf9' }} />
+                    <div style={{ flex:1 }}>
+                      <div style={{ padding:'4px 8px' }}>{b.title}</div>
+                      <BandTrack band={b} layers={layers} domain={domain} />
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>

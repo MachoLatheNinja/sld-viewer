@@ -44,7 +44,6 @@ export default function App() {
   const [editSeams, setEditSeams] = useState(false)
 
   const [bandGroups, setBandGroups] = useState(DEFAULT_BAND_GROUPS)
-  const bands = useMemo(() => bandGroups.flatMap(g => g.bands), [bandGroups])
   const domain = useMemo(() => ({ fromKm, toKm }), [fromKm, toKm])
   const currentSection = useMemo(() => sectionList.find(s => s.id === sectionId) || null, [sectionList, sectionId])
   const currentRoad = useMemo(() => {
@@ -237,19 +236,19 @@ export default function App() {
           kmPosts={layers?.kmPosts}
         />
 
-        <BandAccordion groups={bandGroups} />
-
         <SLDCanvasV2
           road={currentRoad}
           layers={layers}
           domain={domain}
           onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
-          bands={bands}
+          bands={[]}
           onMoveSeam={handleMoveSeam}
           canEditSeams={editSeams}
           showGuide={showGuide}
           guideKm={guideKm}
         />
+
+        <BandAccordion groups={bandGroups} layers={layers} domain={domain} />
       </div>
     </div>
   )
