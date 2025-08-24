@@ -168,7 +168,7 @@ model KmPost {
   @@index([sectionId, chainageM])
 }
 
-model gaa_miow {
+model GaaMiow {
   id                     String   @id @map("primary_key")
   project_id             String?
   component_id           String?

@@ -71,7 +71,7 @@ app.get('/api/roads/:id/layers', async (req, res) => {
     prisma.municipalityBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
     prisma.bridgeBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
     prisma.kmPost.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ chainageM:'asc' }, { id:'asc' }] }),
-    prisma.gaa_miow.findMany({ where: { infra_id: { in: sectionIds } }, orderBy: [{ infra_year:'desc' }, { start_chainage:'asc' }] }),
+    prisma.gaaMiow.findMany({ where: { infra_id: { in: sectionIds } }, orderBy: [{ infra_year: 'desc' }, { start_chainage: 'asc' }] }),
   ])
 
   const miowBands = miow.map(r => ({
