@@ -40,7 +40,7 @@ export default function BandAccordion({ groups = [], layers, domain, activeKm, g
                 const h = Math.max(18, Math.min(20, b.height || 20))
                 return (
                   <div key={b.key} style={{ margin:'2px 0' }}>
-                    <div style={{ display:'flex', height:h, border:'1px solid #e0e0e0', borderRadius:4, overflow:'visible' }}>
+                    <div style={{ display:'flex', height:h, borderRadius:4, overflow:'visible', boxShadow:'0 0 0 1px #e0e0e0 inset' }}>
                       <div
                         style={{
                           position:'sticky',
