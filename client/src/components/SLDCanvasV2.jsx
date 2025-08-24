@@ -46,18 +46,16 @@ function laneColor(lanes) {
 function createStripePattern(ctx, c1, c2) {
   const size = 12
   const cvs = document.createElement('canvas')
-  cvs.width = cvs.height = size * 2
+  cvs.width = cvs.height = size
   const pctx = cvs.getContext('2d')
   pctx.fillStyle = c1
-  pctx.fillRect(0, 0, cvs.width, cvs.height)
-  pctx.fillStyle = c2
+  pctx.fillRect(0, 0, size, size)
+  pctx.strokeStyle = c2
+  pctx.lineWidth = size / 2
   pctx.beginPath()
-  pctx.moveTo(0, size)
-  pctx.lineTo(size, 0)
-  pctx.lineTo(size * 2, size)
-  pctx.lineTo(size, size * 2)
-  pctx.closePath()
-  pctx.fill()
+  pctx.moveTo(-size, size)
+  pctx.lineTo(size, -size)
+  pctx.stroke()
   return ctx.createPattern(cvs, 'repeat')
 }
 
