@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { fetchRoads, fetchLayers, moveBandSeam } from './api'
 import ControlBar from './components/ControlBar'
 import SLDCanvasV2 from './components/SLDCanvasV2'
@@ -50,6 +50,21 @@ export default function App() {
 
   const [fromKm, setFromKm] = useState(0)
   const [toKm, setToKm] = useState(10)
+  const domainRef = useRef({ from: 0, to: 10 })
+  const rafRef = useRef(null)
+  const setDomain = useCallback((a, b) => {
+    domainRef.current = { from: a, to: b }
+    if (rafRef.current == null) {
+      rafRef.current = requestAnimationFrame(() => {
+        setFromKm(domainRef.current.from)
+        setToKm(domainRef.current.to)
+        rafRef.current = null
+      })
+    }
+  }, [])
+  useEffect(() => () => {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current)
+  }, [])
 
   const [showGuide, setShowGuide] = useState(false)
   const [editSeams, setEditSeams] = useState(false)
@@ -132,8 +147,7 @@ export default function App() {
     const section = sectionList.find(s => s.id === sectionId)
     if (!section) return
     const length = section.endKm - section.startKm
-    setFromKm(0)
-    setToKm(length)
+    setDomain(0, length)
   }, [sectionId, sectionList])
 
   useEffect(() => {
@@ -151,8 +165,7 @@ export default function App() {
       from = Math.max(0, from - (to - length))
       to = length
     }
-    setFromKm(from)
-    setToKm(to)
+    setDomain(from, to)
   }, [guideKm, sectionId, sectionList])
 
   useEffect(() => {
@@ -312,8 +325,7 @@ export default function App() {
     if (newFrom < 0) { newTo -= newFrom; newFrom = 0 }
     if (newTo > length) { newFrom -= (newTo - length); newTo = length }
     if (newTo <= newFrom) return
-    setFromKm(newFrom)
-    setToKm(newTo)
+    setDomain(newFrom, newTo)
   }
 
   return (
@@ -348,7 +360,7 @@ export default function App() {
         <ControlBar
           road={currentRoad}
           domain={domain}
-          onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
+          onDomainChange={setDomain}
           showGuide={showGuide}
           onToggleGuide={toggleGuide}
           editSeams={editSeams}
@@ -384,7 +396,7 @@ export default function App() {
                   road={currentRoad}
                   layers={layers}
                   domain={domain}
-                  onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
+                  onDomainChange={setDomain}
                   bands={[]}
                   onMoveSeam={handleMoveSeam}
                   canEditSeams={editSeams}
