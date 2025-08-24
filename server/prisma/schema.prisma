@@ -168,6 +168,33 @@ model KmPost {
   @@index([sectionId, chainageM])
 }
 
+model gaa_miow {
+  id                     String   @id @map("primary_key")
+  project_id             String?
+  component_id           String?
+  project_component_cost String?
+  infra_type             String?
+  infra_year             BigInt?
+  type_of_work           String?
+  unit_of_measure        String?
+  physical_target        Decimal? @db.Numeric
+  dominant               String?
+  dsow                   String?
+  infra_id               String?
+  start_chainage         String?
+  end_chainage           String?
+  length                 String?  @map("Length")
+  start_station_limit    String?  @map("Start Station Limit")
+  end_station_limit      String?  @map("End Station Limit")
+  start_x_coordinate     String?
+  start_y_coordinate     String?
+  end_x_coordinate       String?
+  end_y_coordinate       String?
+
+  @@map("gaa_miow")
+  // @@schema("public") // uncomment if you're using multi-schema in Prisma 5+/6
+}
+
 enum SideBias {
   LS @map("L/S")
   RS @map("R/S")

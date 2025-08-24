@@ -59,7 +59,7 @@ app.get('/api/roads/:id/layers', async (req, res) => {
   const sectionIds = sections.map(s => s.id)
 
   const [
-    surface, aadt, status, quality, lanes, rowWidth, carriagewayWidth, municipality, bridges, kmPosts
+    surface, aadt, status, quality, lanes, rowWidth, carriagewayWidth, municipality, bridges, kmPosts, miow
   ] = await Promise.all([
     prisma.surfaceBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
     prisma.aadtBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
@@ -71,9 +71,19 @@ app.get('/api/roads/:id/layers', async (req, res) => {
     prisma.municipalityBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
     prisma.bridgeBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
     prisma.kmPost.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ chainageM:'asc' }, { id:'asc' }] }),
+    prisma.gaa_miow.findMany({ where: { infra_id: { in: sectionIds } }, orderBy: [{ infra_year:'desc' }, { start_chainage:'asc' }] }),
   ])
 
-  res.json({ road, sections, surface, aadt, status, quality, lanes, rowWidth, carriagewayWidth, municipality, bridges, kmPosts })
+  const miowBands = miow.map(r => ({
+    id: r.id,
+    sectionId: r.infra_id,
+    startM: parseFloat(r.start_chainage) || 0,
+    endM: parseFloat(r.end_chainage) || 0,
+    year: r.infra_year ? Number(r.infra_year) : null,
+    typeOfWork: r.type_of_work,
+  }))
+
+  res.json({ road, sections, surface, aadt, status, quality, lanes, rowWidth, carriagewayWidth, municipality, bridges, kmPosts, miow: miowBands })
 })
 
 /**

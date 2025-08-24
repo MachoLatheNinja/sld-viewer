@@ -522,6 +522,10 @@ export default function SLDCanvasV2({
           drawRanges(box, layers?.bridges, () => '#5d4037', r => r.name)
           break
         default:
+          if (box.key.startsWith('miow_')) {
+            const year = box.key.split('_')[1]
+            drawRanges(box, layers?.miow?.[year], () => '#1976d2', r => r.typeOfWork || '')
+          }
           break
       }
     }
@@ -554,6 +558,10 @@ export default function SLDCanvasV2({
   // ---------- interactions ----------
   const bandArrayByKey = (key) => {
     if (!layers) return []
+    if (key.startsWith('miow_')) {
+      const year = key.split('_')[1]
+      return layers.miow?.[year] || []
+    }
     switch (key) {
       case 'surface': return layers.surface || []
       case 'aadt': return layers.aadt || []
@@ -569,6 +577,7 @@ export default function SLDCanvasV2({
   }
 
   const bandValue = (key, r) => {
+    if (key.startsWith('miow_')) return r.typeOfWork
     switch (key) {
       case 'surface': return r.surface
       case 'aadt': return formatAADT(r.aadt)

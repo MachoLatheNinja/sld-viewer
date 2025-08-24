@@ -10,6 +10,7 @@ export async function fetchLayers(roadId) {
   const { data } = await axios.get(`${API}/api/roads/${roadId}/layers`)
   const road = data.road ? { ...data.road, lengthKm: (data.road.lengthM || 0) / 1000 } : null
   const conv = (arr) => (arr || []).map((r) => ({ ...r, startKm: r.startM / 1000, endKm: r.endM / 1000 }))
+  const convMiow = (arr) => (arr || []).map((r) => ({ ...r, startKm: r.startM / 1000, endKm: r.endM / 1000 }))
   const kmPosts = (data.kmPosts || []).map((p) => ({ ...p, chainageKm: p.chainageM / 1000 }))
   const sections = conv(data.sections)
   return {
@@ -25,6 +26,7 @@ export async function fetchLayers(roadId) {
     municipality: conv(data.municipality),
     bridges: conv(data.bridges),
     kmPosts,
+    miow: convMiow(data.miow),
   }
 }
 

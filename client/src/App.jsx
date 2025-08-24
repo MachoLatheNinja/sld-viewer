@@ -42,7 +42,7 @@ export default function App() {
   const [showGuide, setShowGuide] = useState(false)
   const [editSeams, setEditSeams] = useState(false)
 
-  const [bands] = useState(() => DEFAULT_BANDS)
+  const [bands, setBands] = useState(DEFAULT_BANDS)
   const domain = useMemo(() => ({ fromKm, toKm }), [fromKm, toKm])
   const currentSection = useMemo(() => sectionList.find(s => s.id === sectionId) || null, [sectionList, sectionId])
   const currentRoad = useMemo(() => {
@@ -92,6 +92,13 @@ export default function App() {
       .sort((a, b) => a.chainageKm - b.chainageKm)
 
     if (allLayers) {
+      const miowByYear = {}
+      const miowSlice = slice(allLayers.miow)
+      for (const r of miowSlice) {
+        const y = r.year
+        if (!miowByYear[y]) miowByYear[y] = []
+        miowByYear[y].push(r)
+      }
       setLayers({
         surface: mergeRanges(slice(allLayers.surface), ['surface','surfacePerLane']),
         aadt: mergeRanges(slice(allLayers.aadt), 'aadt'),
@@ -103,6 +110,7 @@ export default function App() {
         municipality: mergeRanges(slice(allLayers.municipality), 'name'),
         bridges: slice(allLayers.bridges),
         kmPosts: slicePosts(allLayers.kmPosts),
+        miow: miowByYear,
       })
     }
   }, [sectionId, sectionList, allLayers])
@@ -134,6 +142,18 @@ export default function App() {
     setFromKm(from)
     setToKm(to)
   }, [guideKm, sectionId, sectionList])
+
+  useEffect(() => {
+    const years = Array.from(new Set((allLayers?.miow || []).map(r => r.year))).sort((a,b) => b - a)
+    const nextBands = []
+    DEFAULT_BANDS.forEach(b => {
+      nextBands.push(b)
+      if (b.key === 'quality') {
+        years.forEach(y => nextBands.push({ key: `miow_${y}`, title: String(y), height: 28 }))
+      }
+    })
+    setBands(nextBands)
+  }, [allLayers])
 
   const onSearch = () => {
     const kmVal = lrpToChainageKm(q, allLayers?.kmPosts)
