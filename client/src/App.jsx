@@ -369,7 +369,7 @@ export default function App() {
           </div>
           <div
             ref={contentRef}
-            style={{ position:'relative', overflowX:'auto' }}
+            style={{ position:'relative', overflowX:'auto', overflowY:'visible' }}
             onMouseMove={handlePanelMouseMove}
             onMouseLeave={handlePanelMouseLeave}
             onScroll={handlePanelScroll}
@@ -431,7 +431,7 @@ export default function App() {
                   zIndex:40,
                 }}
               >
-                {formatLRP(activeKm, layers?.kmPosts)} ({formatChainage((activeKm + (currentSection?.startKm || 0)) * 1000)} m)
+                {formatLRP(activeKm + (currentSection?.startKm || 0), layers?.kmPosts)} ({formatChainage((activeKm + (currentSection?.startKm || 0)) * 1000)} m)
               </div>
             )}
           </div>
