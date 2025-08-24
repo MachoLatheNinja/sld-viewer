@@ -16,7 +16,7 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v)) // used for non-bridg
 
 // ---------- helpers ----------
 const BAND_META = {
-  surface:      { client: (tx)=>tx.surfaceBand,      valueField: 'surface'    },
+  surface:      { client: (tx)=>tx.surfaceBand,      valueFields: ['surface','surfacePerLane'] },
   aadt:         { client: (tx)=>tx.aadtBand,         valueField: 'aadt'       },
   status:       { client: (tx)=>tx.statusBand,       valueField: 'status'     },
   quality:      { client: (tx)=>tx.qualityBand,      valueField: 'quality'    },
@@ -29,6 +29,11 @@ const BAND_META = {
 function eqVal(a,b){
   if (typeof a === 'number' && typeof b === 'number') return Math.abs(a-b) < EPS
   return a === b
+}
+
+function eqRow(a = {}, b = {}, meta = {}){
+  const fields = meta.valueFields || (meta.valueField ? [meta.valueField] : [])
+  return fields.every(f => eqVal(a[f], b[f]))
 }
 
 // ---------- health ----------
@@ -120,7 +125,7 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
           const leftAfter = await T.findUnique({ where: { id: left.id } })
           if (leftNeighbor && leftNeighbor.id !== leftAfter.id &&
               Math.abs(leftNeighbor.endM - leftAfter.startM) < EPS &&
-              eqVal(leftNeighbor[meta.valueField], leftAfter[meta.valueField])) {
+              eqRow(leftNeighbor, leftAfter, meta)) {
             await T.delete({ where: { id: leftNeighbor.id } })
             await T.update({ where: { id: leftAfter.id }, data: { startM: leftNeighbor.startM } })
           }
@@ -143,7 +148,7 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
           const rightAfter = await T.findUnique({ where: { id: right.id } })
           if (rightNeighbor && rightNeighbor.id !== rightAfter.id &&
               Math.abs(rightNeighbor.startM - rightAfter.endM) < EPS &&
-              eqVal(rightNeighbor[meta.valueField], rightAfter[meta.valueField])) {
+              eqRow(rightNeighbor, rightAfter, meta)) {
             await T.delete({ where: { id: rightNeighbor.id } })
             await T.update({ where: { id: rightAfter.id }, data: { endM: rightNeighbor.endM } })
           }
@@ -178,7 +183,7 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
         const leftAfter = await T.findUnique({ where: { id: left.id } })
         if (leftNeighbor && leftNeighbor.id !== leftAfter.id &&
             Math.abs(leftNeighbor.endM - leftAfter.startM) < EPS &&
-            eqVal(leftNeighbor[meta.valueField], leftAfter[meta.valueField])) {
+            eqRow(leftNeighbor, leftAfter, meta)) {
           await T.delete({ where: { id: leftNeighbor.id } })
           await T.update({ where: { id: leftAfter.id }, data: { startM: leftNeighbor.startM } })
         }
@@ -190,7 +195,7 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
         const rightAfter = await T.findUnique({ where: { id: right.id } })
         if (rightNeighbor && rightNeighbor.id !== rightAfter.id &&
             Math.abs(rightNeighbor.startM - rightAfter.endM) < EPS &&
-            eqVal(rightNeighbor[meta.valueField], rightAfter[meta.valueField])) {
+            eqRow(rightNeighbor, rightAfter, meta)) {
           await T.delete({ where: { id: rightNeighbor.id } })
           await T.update({ where: { id: rightAfter.id }, data: { endM: rightNeighbor.endM } })
         }

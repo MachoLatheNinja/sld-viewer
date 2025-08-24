@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { DEFAULT_BANDS } from '../bands'
-import { parseLrpKm } from '../lrp'
+import { parseLrpKm, formatLRP } from '../lrp'
 
 const SURFACE_COLORS = { Asphalt:'#282828', Concrete:'#a1a1a1', Gravel:'#8d6e63' }
-const QUALITY_COLORS = { Poor:'#e53935', Fair:'#fb8c00', Good:'#43a047', Excellent:'#1e88e5' }
+const LANE_SURFACE_MAP = { A:'Asphalt', C:'Concrete', G:'Gravel' }
+const QUALITY_COLORS = { Poor:'#ffb54c', Fair:'#f8d66d', Good:'#7abd7e', Bad:'#ff6961' }
 const STATUS_COLORS  = { Open:'#9e9e9e', Closed:'#d32f2f' }
 
 const LANE_ROW_H = 126
@@ -34,58 +35,39 @@ function formatChainage(m){
 
 function laneColor(lanes) {
   const min = 2
-  const max = 10
+  const max = 8
   const t = Math.min(1, Math.max(0, (lanes - min) / (max - min)))
-  const start = [0xA9, 0xD6, 0xE5] // #A9D6E5
-  const end = [0x01, 0x24, 0xA4]   // #0124A4
+  const start = [0x9E, 0xCA, 0xE1] // #9ecae1
+  const end = [0x08, 0x30, 0x6B]   // #08306b
   const [r, g, b] = start.map((s, i) => Math.round(s + t * (end[i] - s)))
   return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`
 }
 
-function formatLrpKm(kmVal) {
-  const k = Math.floor(kmVal)
-  const mPart = Math.round((kmVal - k) * 1000)
-  return `K${String(k).padStart(4,'0')} + ${String(mPart).padStart(3,'0')}`
+function fillDiagonalStripes(ctx, x, y, w, h, light, dark, pitch = 20) {
+  const stripe = pitch / 2
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(x, y, w, h)
+  ctx.clip()
+
+  ctx.fillStyle = light
+  ctx.fillRect(x, y, w, h)
+
+  const start = ((x - y) % pitch + pitch) % pitch
+  for (let px = x - start - h; px < x + w + h; px += pitch) {
+    ctx.beginPath()
+    ctx.moveTo(px, y)
+    ctx.lineTo(px + stripe, y)
+    ctx.lineTo(px + stripe - h, y + h)
+    ctx.lineTo(px - h, y + h)
+    ctx.closePath()
+    ctx.fillStyle = dark
+    ctx.fill()
+  }
+
+  ctx.restore()
 }
 
-function formatLRP(km, posts = []) {
-  if (!posts.length) return formatLrpKm(km)
-  const sorted = posts.slice().sort((a, b) => a.chainageKm - b.chainageKm)
-  let prev = sorted[0]
-  let next = sorted[sorted.length - 1]
-  for (const p of sorted) {
-    if (p.chainageKm <= km) prev = p
-    if (p.chainageKm >= km) { next = p; break }
-  }
-  const prevLrpKm = parseLrpKm(prev?.lrp)
-  const nextLrpKm = parseLrpKm(next?.lrp)
-
-  if (
-    prev.chainageKm <= km &&
-    km < next.chainageKm &&
-    prevLrpKm != null &&
-    nextLrpKm != null
-  ) {
-    const gapM = (next.chainageKm - prev.chainageKm) * 1000
-    // Only suppress rolling over when the gap between posts exceeds 1 km.
-    if (gapM > 1000 + EPS) {
-      const baseKm = Math.floor(prevLrpKm)
-      const baseOffsetM = (prevLrpKm - baseKm) * 1000
-      const offsetM = Math.round(baseOffsetM + (km - prev.chainageKm) * 1000)
-      return `K${String(baseKm).padStart(4,'0')} + ${String(offsetM).padStart(3,'0')}`
-    }
-  }
-
-  if (prev.chainageKm <= km && prevLrpKm != null) {
-    const lrpKm = prevLrpKm + (km - prev.chainageKm)
-    return formatLrpKm(lrpKm)
-  }
-  if (next.chainageKm >= km && nextLrpKm != null) {
-    const lrpKm = nextLrpKm - (next.chainageKm - km)
-    return formatLrpKm(lrpKm)
-  }
-  return formatLrpKm(km)
-}
 
 export default function SLDCanvasV2({
   road,
@@ -96,6 +78,7 @@ export default function SLDCanvasV2({
   onMoveSeam,        // (bandKey, leftId, rightId, km, extra={})
   showGuide,
   guideKm,
+  canEditSeams,
 }) {
   const canvasRef = useRef(null)
   const [panX, setPanX] = useState(0)
@@ -209,8 +192,8 @@ export default function SLDCanvasV2({
 
   const surfaceAt = (km) => {
     const arr = layers?.surface || []
-    for (const r of arr) if (km >= r.startKm - EPS && km <= r.endKm + EPS) return r.surface
-    return 'Asphalt'
+    for (const r of arr) if (km >= r.startKm - EPS && km <= r.endKm + EPS) return r
+    return { surface: 'Asphalt' }
   }
 
     const draw = () => {
@@ -258,19 +241,37 @@ export default function SLDCanvasV2({
       const lanesBottom = lanes - lanesTop
       const yTop = centerY - laneW * lanesTop
       const yBot = centerY + laneW * lanesBottom
-      const surf = surfaceAt(midKm)
-      const color = SURFACE_COLORS[surf] || '#707070'
+      const { surface: surf, surfacePerLane } = surfaceAt(midKm)
       const x1 = kmToX(startKm)
       const x2 = kmToX(endKm)
 
-      ctx.fillStyle = color
-      ctx.beginPath()
-      ctx.moveTo(x1 - 0.5, Math.floor(yTop) + 0.5)
-      ctx.lineTo(x2 + 0.5, Math.floor(yTop) + 0.5)
-      ctx.lineTo(x2 + 0.5, Math.ceil(yBot) + 0.5)
-      ctx.lineTo(x1 - 0.5, Math.ceil(yBot) + 0.5)
-      ctx.closePath()
-      ctx.fill()
+      if (surfacePerLane && surfacePerLane.length >= lanes) {
+        for (let lane = 0; lane < lanes; lane++) {
+          const code = surfacePerLane[lane]
+          const laneSurf = LANE_SURFACE_MAP[code] || surf
+          const color = SURFACE_COLORS[laneSurf] || '#707070'
+          const y1 = yTop + laneW * lane
+          const y2 = y1 + laneW
+          ctx.fillStyle = color
+          ctx.beginPath()
+          ctx.moveTo(x1 - 0.5, Math.floor(y1) + 0.5)
+          ctx.lineTo(x2 + 0.5, Math.floor(y1) + 0.5)
+          ctx.lineTo(x2 + 0.5, Math.ceil(y2) + 0.5)
+          ctx.lineTo(x1 - 0.5, Math.ceil(y2) + 0.5)
+          ctx.closePath()
+          ctx.fill()
+        }
+      } else {
+        const color = SURFACE_COLORS[surf] || '#707070'
+        ctx.fillStyle = color
+        ctx.beginPath()
+        ctx.moveTo(x1 - 0.5, Math.floor(yTop) + 0.5)
+        ctx.lineTo(x2 + 0.5, Math.floor(yTop) + 0.5)
+        ctx.lineTo(x2 + 0.5, Math.ceil(yBot) + 0.5)
+        ctx.lineTo(x1 - 0.5, Math.ceil(yBot) + 0.5)
+        ctx.closePath()
+        ctx.fill()
+      }
     }
 
     // center line
@@ -414,7 +415,7 @@ export default function SLDCanvasV2({
     }
 
     // ----- BANDS -----
-    const drawRanges = (box, ranges, colorFn, labelFn) => {
+    const drawRanges = (box, ranges, colorFn, labelFn, textColorFn) => {
       if (!ranges) return
       const titleY = box.y + Math.min(16, box.h-6)
       const trackH = box.h - 6
@@ -429,15 +430,31 @@ export default function SLDCanvasV2({
         const x1 = Math.round(kmToX(Math.max(r.startKm, fromKm)))
         const x2 = Math.round(kmToX(Math.min(r.endKm, toKm)))
         const ww = Math.max(1, x2 - x1)
-        ctx.fillStyle = colorFn(r)
-        ctx.fillRect(x1, trackY, ww, trackH)
+        const fill = colorFn(r)
+        if (fill && typeof fill === 'object' && fill.type === 'stripes') {
+          fillDiagonalStripes(ctx, x1, trackY, ww, trackH, fill.light, fill.dark, fill.pitch)
+        } else {
+          ctx.fillStyle = fill || '#bdbdbd'
+          ctx.fillRect(x1, trackY, ww, trackH)
+        }
 
         const lbl = labelFn ? labelFn(r) : ''
         if (lbl) {
           ctx.font = '11px system-ui'
           const textW = ctx.measureText(lbl).width
-          if (textW + 4 <= ww) {
-            ctx.fillStyle = '#fff'
+          const padding = lbl === 'CAAC' ? 4 : 2
+          if (textW + padding * 2 <= ww) {
+            if (lbl === 'CAAC') {
+              const rectW = textW + padding * 2
+              const rectH = 16
+              const rectX = x1 + (ww - rectW) / 2
+              const rectY = trackY + (trackH - rectH) / 2
+              ctx.fillStyle = '#282828'
+              ctx.fillRect(rectX, rectY, rectW, rectH)
+              ctx.fillStyle = '#fff'
+            } else {
+              ctx.fillStyle = textColorFn ? textColorFn(r) : '#fff'
+            }
             ctx.textAlign = 'center'
             ctx.fillText(lbl, x1 + ww / 2, trackY + (trackH / 2) + 3)
             ctx.textAlign = 'left'
@@ -463,7 +480,16 @@ export default function SLDCanvasV2({
     for (const box of layout.bandBoxes) {
       switch (box.key) {
         case 'surface':
-          drawRanges(box, layers?.surface, r => SURFACE_COLORS[r.surface]||'#bdbdbd', r => r.surface)
+          drawRanges(
+            box,
+            layers?.surface,
+            r => (
+              r.surfacePerLane === 'CAAC'
+                ? { type: 'stripes', light: '#a1a1a1', dark: '#282828', pitch: 20 }
+                : (SURFACE_COLORS[r.surface] || '#bdbdbd')
+            ),
+            r => r.surfacePerLane || r.surface
+          )
           break
         case 'aadt':
           drawRanges(box, layers?.aadt, () => '#6a1b9a', r => formatAADT(r.aadt))
@@ -644,8 +670,11 @@ export default function SLDCanvasV2({
     const rect = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
-    const seam = hitSeamAt(x, y)
-    if (seam) { dragRef.current = { type:'seam', ...seam }; return }
+    const seam = canEditSeams ? hitSeamAt(x, y) : null
+    if (seam) {
+      dragRef.current = { type:'seam', startX:x, startY:y, moved:false, ...seam }
+      return
+    }
     dragRef.current = { type:'pan', startX:x, startFrom: fromKm, startTo: toKm }
   }
 
@@ -654,7 +683,7 @@ export default function SLDCanvasV2({
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
     const seam = hitSeamAt(x, y)
-    e.currentTarget.style.cursor = seam ? 'ew-resize' : (dragRef.current?.type==='pan' ? 'grabbing' : 'grab')
+    e.currentTarget.style.cursor = (canEditSeams && seam) ? 'ew-resize' : (dragRef.current?.type==='pan' ? 'grabbing' : 'grab')
     const { xToKm } = helpersRef.current
     if (showGuide) {
       let km = xToKm(x)
@@ -679,6 +708,8 @@ export default function SLDCanvasV2({
       if (nt > lengthKm) { nf -= (nt - lengthKm); nt = lengthKm }
       if (nt <= nf) return
       onDomainChange(nf, nt)
+    } else if (drag.type === 'seam') {
+      if (!drag.moved && Math.abs(x - drag.startX) > 2) drag.moved = true
     }
   }
 
@@ -686,6 +717,34 @@ export default function SLDCanvasV2({
     const drag = dragRef.current
     dragRef.current = null
     if (!drag || drag.type !== 'seam') return
+
+    if (!drag.moved) {
+      let currentKm
+      if (drag.bandKey === 'bridges') {
+        currentKm = drag.edge === 'start' ? drag.right.startKm : drag.left.endKm
+      } else {
+        currentKm = drag.left.endKm
+      }
+      const defaultVal = Math.round(currentKm * 1000)
+      const inp = window.prompt('Enter new seam location (meters)', String(defaultVal))
+      if (inp == null) return
+      const num = Number(inp)
+      if (!Number.isFinite(num)) return
+      const newKm = num / 1000
+
+      if (drag.bandKey === 'bridges') {
+        if (drag.edge === 'end') {
+          const next = drag.right || null
+          await onMoveSeam?.('bridges', drag.left.id, next?.id ?? null, newKm, { edge:'end' })
+        } else if (drag.edge === 'start') {
+          const prev = drag.left || null
+          await onMoveSeam?.('bridges', prev?.id ?? null, drag.right.id, newKm, { edge:'start' })
+        }
+      } else {
+        await onMoveSeam?.(drag.bandKey, drag.left.id, drag.right.id, newKm)
+      }
+      return
+    }
 
     const rect = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - rect.left

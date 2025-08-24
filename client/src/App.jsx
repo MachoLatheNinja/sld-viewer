@@ -7,13 +7,17 @@ import { lrpToChainageKm } from './lrp'
 
 const EPS = 1e-6
 
-function mergeRanges(arr = [], prop) {
+function mergeRanges(arr = [], props) {
   if (!arr.length) return []
+  const getKey = (r) => {
+    const fields = Array.isArray(props) ? props : [props]
+    return fields.map((p) => r[p]).join('|')
+  }
   const out = [{ ...arr[0] }]
   for (let i = 1; i < arr.length; i++) {
     const prev = out[out.length - 1]
     const cur = arr[i]
-    if (prev[prop] === cur[prop] && Math.abs(prev.endKm - cur.startKm) < EPS) {
+    if (getKey(prev) === getKey(cur) && Math.abs(prev.endKm - cur.startKm) < EPS) {
       prev.endKm = cur.endKm
     } else {
       out.push({ ...cur })
@@ -36,6 +40,7 @@ export default function App() {
   const [toKm, setToKm] = useState(10)
 
   const [showGuide, setShowGuide] = useState(false)
+  const [editSeams, setEditSeams] = useState(false)
 
   const [bands] = useState(() => DEFAULT_BANDS)
   const domain = useMemo(() => ({ fromKm, toKm }), [fromKm, toKm])
@@ -88,7 +93,7 @@ export default function App() {
 
     if (allLayers) {
       setLayers({
-        surface: mergeRanges(slice(allLayers.surface), 'surface'),
+        surface: mergeRanges(slice(allLayers.surface), ['surface','surfacePerLane']),
         aadt: mergeRanges(slice(allLayers.aadt), 'aadt'),
         status: mergeRanges(slice(allLayers.status), 'status'),
         quality: mergeRanges(slice(allLayers.quality), 'quality'),
@@ -102,13 +107,13 @@ export default function App() {
   }, [sectionId, sectionList, allLayers])
 
   useEffect(() => {
-    if (!sectionId || guideKm != null) return
+    if (!sectionId) return
     const section = sectionList.find(s => s.id === sectionId)
     if (!section) return
     const length = section.endKm - section.startKm
     setFromKm(0)
     setToKm(length)
-  }, [sectionId, sectionList, guideKm])
+  }, [sectionId, sectionList])
 
   useEffect(() => {
     if (guideKm == null) return
@@ -131,12 +136,26 @@ export default function App() {
 
   const onSearch = () => {
     const kmVal = lrpToChainageKm(q, allLayers?.kmPosts)
-    if (kmVal == null) return
-    const sec = sectionList.find(s => kmVal >= s.startKm && kmVal <= s.endKm)
-    if (sec) {
-      setGuideKm(kmVal - sec.startKm)
-      setSectionId(sec.id)
-      setShowGuide(true)
+    if (kmVal != null) {
+      const sec = sectionList.find(s => kmVal >= s.startKm && kmVal <= s.endKm)
+      if (sec) {
+        setGuideKm(kmVal - sec.startKm)
+        setSectionId(sec.id)
+        setShowGuide(true)
+      }
+      return
+    }
+
+    const bridge = allLayers?.bridges?.find(
+      b => b.name?.toLowerCase().includes(q.trim().toLowerCase())
+    )
+    if (bridge) {
+      const sec = sectionList.find(s => s.id === bridge.sectionId)
+      if (sec) {
+        setGuideKm(bridge.startKm - sec.startKm)
+        setSectionId(sec.id)
+        setShowGuide(true)
+      }
     }
   }
 
@@ -166,7 +185,7 @@ export default function App() {
             <input
               value={q}
               onChange={(e)=>setQ(e.target.value)}
-              placeholder="Search chainage…"
+              placeholder="Search chainage or bridge…"
               onKeyDown={(e)=>{ if(e.key==='Enter') onSearch() }}
               style={{ width: 260 }}
             />
@@ -192,6 +211,9 @@ export default function App() {
           onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
           showGuide={showGuide}
           onToggleGuide={toggleGuide}
+          editSeams={editSeams}
+          onToggleEditSeams={()=>setEditSeams(e=>!e)}
+          kmPosts={layers?.kmPosts}
         />
 
         <SLDCanvasV2
@@ -201,6 +223,7 @@ export default function App() {
           onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
           bands={bands}
           onMoveSeam={handleMoveSeam}
+          canEditSeams={editSeams}
           showGuide={showGuide}
           guideKm={guideKm}
         />
