@@ -43,7 +43,7 @@ function laneColor(lanes) {
   return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`
 }
 
-function fillDiagonalStripes(ctx, x, y, w, h, light, dark, pitch = 12) {
+function fillDiagonalStripes(ctx, x, y, w, h, light, dark, pitch = 20) {
   const stripe = pitch / 2
   ctx.save()
   ctx.beginPath()
@@ -54,7 +54,7 @@ function fillDiagonalStripes(ctx, x, y, w, h, light, dark, pitch = 12) {
   ctx.fillRect(x, y, w, h)
 
   const start = ((x - y) % pitch + pitch) % pitch
-  for (let px = x - start - h; px < x + w; px += pitch) {
+  for (let px = x - start - h; px < x + w + h; px += pitch) {
     ctx.beginPath()
     ctx.moveTo(px, y)
     ctx.lineTo(px + stripe, y)
@@ -474,7 +474,7 @@ export default function SLDCanvasV2({
             layers?.surface,
             r => (
               r.surfacePerLane === 'CAAC'
-                ? { type: 'stripes', light: '#a1a1a1', dark: '#282828', pitch: 12 }
+                ? { type: 'stripes', light: '#a1a1a1', dark: '#282828', pitch: 20 }
                 : (SURFACE_COLORS[r.surface] || '#bdbdbd')
             ),
             r => r.surfacePerLane || r.surface,
