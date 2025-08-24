@@ -509,6 +509,9 @@ export default function SLDCanvasV2({
         case 'rowWidth':
           drawRanges(box, layers?.rowWidth, () => '#1565c0', r => `${r.rowWidthM} m`)
           break
+        case 'carriagewayWidth':
+          drawRanges(box, layers?.carriagewayWidth, () => '#f57c00', r => `${r.carriagewayWidthM} m`)
+          break
         case 'lanes':
           drawRanges(box, layers?.lanes, r => laneColor(r.lanes), r => `${r.lanes} lanes`)
           break
@@ -558,6 +561,7 @@ export default function SLDCanvasV2({
       case 'quality': return layers.quality || []
       case 'lanes': return layers.lanes || []
       case 'rowWidth': return layers.rowWidth || []
+      case 'carriagewayWidth': return layers.carriagewayWidth || []
       case 'municipality': return layers.municipality || []
       case 'bridges': return layers.bridges || []
       default: return []
@@ -572,6 +576,7 @@ export default function SLDCanvasV2({
       case 'quality': return r.quality
       case 'lanes': return `${r.lanes} lanes`
       case 'rowWidth': return `${r.rowWidthM} m`
+      case 'carriagewayWidth': return `${r.carriagewayWidthM} m`
       case 'municipality': return r.name
       case 'bridges': return r.name
       default: return ''

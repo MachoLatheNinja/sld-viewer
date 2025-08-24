@@ -99,6 +99,7 @@ export default function App() {
         quality: mergeRanges(slice(allLayers.quality), 'quality'),
         lanes: mergeRanges(slice(allLayers.lanes), 'lanes'),
         rowWidth: mergeRanges(slice(allLayers.rowWidth), 'rowWidthM'),
+        carriagewayWidth: mergeRanges(slice(allLayers.carriagewayWidth), 'carriagewayWidthM'),
         municipality: mergeRanges(slice(allLayers.municipality), 'name'),
         bridges: slice(allLayers.bridges),
         kmPosts: slicePosts(allLayers.kmPosts),

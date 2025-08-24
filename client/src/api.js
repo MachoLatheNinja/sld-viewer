@@ -21,6 +21,7 @@ export async function fetchLayers(roadId) {
     quality: conv(data.quality),
     lanes: conv(data.lanes),
     rowWidth: conv(data.rowWidth),
+    carriagewayWidth: conv(data.carriagewayWidth),
     municipality: conv(data.municipality),
     bridges: conv(data.bridges),
     kmPosts,
