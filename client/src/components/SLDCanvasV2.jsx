@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { DEFAULT_BANDS } from '../bands'
-import { parseLrpKm, formatLRP } from '../lrp'
+import { parseLrpKm, formatLRP, lrpToChainageKm } from '../lrp'
 
 const SURFACE_COLORS = { Asphalt:'#282828', Concrete:'#a1a1a1', Gravel:'#8d6e63' }
 const QUALITY_COLORS = { Poor:'#e53935', Fair:'#fb8c00', Good:'#43a047', Excellent:'#1e88e5' }
@@ -601,7 +601,10 @@ export default function SLDCanvasV2({
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
     const seam = hitSeamAt(x, y)
-    if (seam) { dragRef.current = { type:'seam', ...seam }; return }
+    if (seam) {
+      dragRef.current = { type:'seam', startX:x, startY:y, moved:false, ...seam }
+      return
+    }
     dragRef.current = { type:'pan', startX:x, startFrom: fromKm, startTo: toKm }
   }
 
@@ -635,6 +638,8 @@ export default function SLDCanvasV2({
       if (nt > lengthKm) { nf -= (nt - lengthKm); nt = lengthKm }
       if (nt <= nf) return
       onDomainChange(nf, nt)
+    } else if (drag.type === 'seam') {
+      if (!drag.moved && Math.abs(x - drag.startX) > 2) drag.moved = true
     }
   }
 
@@ -642,6 +647,37 @@ export default function SLDCanvasV2({
     const drag = dragRef.current
     dragRef.current = null
     if (!drag || drag.type !== 'seam') return
+
+    if (!drag.moved) {
+      let currentKm
+      if (drag.bandKey === 'bridges') {
+        currentKm = drag.edge === 'start' ? drag.right.startKm : drag.left.endKm
+      } else {
+        currentKm = drag.left.endKm
+      }
+      const defaultVal = formatLRP(currentKm, layers?.kmPosts || [])
+      const inp = window.prompt('Enter new seam location (meters or K### + ####)', defaultVal)
+      if (inp == null) return
+      let newKm = lrpToChainageKm(inp, layers?.kmPosts || [])
+      if (newKm == null) {
+        const num = Number(inp)
+        if (Number.isFinite(num)) newKm = num / 1000
+      }
+      if (newKm == null) return
+
+      if (drag.bandKey === 'bridges') {
+        if (drag.edge === 'end') {
+          const next = drag.right || null
+          await onMoveSeam?.('bridges', drag.left.id, next?.id ?? null, newKm, { edge:'end' })
+        } else if (drag.edge === 'start') {
+          const prev = drag.left || null
+          await onMoveSeam?.('bridges', prev?.id ?? null, drag.right.id, newKm, { edge:'start' })
+        }
+      } else {
+        await onMoveSeam?.(drag.bandKey, drag.left.id, drag.right.id, newKm)
+      }
+      return
+    }
 
     const rect = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - rect.left
