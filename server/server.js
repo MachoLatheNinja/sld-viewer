@@ -71,7 +71,7 @@ app.get('/api/roads/:id/layers', async (req, res) => {
     prisma.municipalityBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
     prisma.bridgeBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
     prisma.kmPost.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ chainageM:'asc' }, { id:'asc' }] }),
-    prisma.$queryRaw`SELECT * FROM gaa_miow WHERE infra_id IN (${Prisma.join(sectionIds)}) ORDER BY infra_year DESC, start_chainage ASC`,
+    prisma.$queryRaw`SELECT * FROM public.gaa_miow WHERE infra_id IN (${Prisma.join(sectionIds)}) ORDER BY infra_year DESC, start_chainage ASC`,
   ])
 
   const miowBands = miow.map(r => ({
