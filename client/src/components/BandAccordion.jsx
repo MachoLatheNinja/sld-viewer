@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import BandTrack from './BandTrack'
 
-export const LABEL_W = 72
+export const LABEL_W = 92
 
 export default function BandAccordion({ groups = [], layers, domain, activeKm, guideLeft, contentRef, scale }) {
   const [open, setOpen] = useState(() => new Set(groups.map(g => g.key)))
