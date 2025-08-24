@@ -317,7 +317,7 @@ export default function App() {
               canEditSeams={editSeams}
               showGuide={showGuide}
               onHoverKm={setHoverKm}
-              onKmToX={setKmToX}
+              onKmToX={(fn) => setKmToX(() => fn)}
               onLayout={setRoadLayout}
             />
             <BandAccordion groups={bandGroups} layers={layers} domain={domain} />
