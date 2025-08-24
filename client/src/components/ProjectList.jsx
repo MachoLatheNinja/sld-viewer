@@ -16,6 +16,7 @@ export default function ProjectList({ projects = [], onSelect }) {
           const key = p.id ?? p.projectId ?? `${year}-${startKm}-${endKm}-${i}`;
           return (
             <button
+              type="button"
               key={key}
               onClick={() => onSelect?.(p)}
               style={{
