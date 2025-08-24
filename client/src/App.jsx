@@ -4,9 +4,58 @@ import ControlBar from './components/ControlBar'
 import SLDCanvasV2 from './components/SLDCanvasV2'
 import { DEFAULT_BAND_GROUPS } from './bands'
 import BandAccordion from './components/BandAccordion'
-import { lrpToChainageKm } from './lrp'
+import { lrpToChainageKm, formatLRP } from './lrp'
 
 const EPS = 1e-6
+
+function formatAADT(n){ return n==null ? '' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') }
+function formatChainage(m){ return (m==null)? '' : String(m).replace(/\B(?=(\d{3})+(?!\d))/g, ',') }
+
+function bandArrayByKey(layers, key){
+  if (!layers) return []
+  if (key.startsWith('miow_')){
+    const year = key.split('_')[1]
+    return layers.miow?.[year] || []
+  }
+  switch(key){
+    case 'surface': return layers.surface || []
+    case 'aadt': return layers.aadt || []
+    case 'status': return layers.status || []
+    case 'quality': return layers.quality || []
+    case 'lanes': return layers.lanes || []
+    case 'rowWidth': return layers.rowWidth || []
+    case 'carriagewayWidth': return layers.carriagewayWidth || []
+    case 'municipality': return layers.municipality || []
+    case 'bridges': return layers.bridges || []
+    default: return []
+  }
+}
+
+function bandValue(key, r){
+  if (key.startsWith('miow_')) return r.typeOfWork
+  switch(key){
+    case 'surface': return r.surface
+    case 'aadt': return formatAADT(r.aadt)
+    case 'status': return r.status
+    case 'quality': return r.quality
+    case 'lanes': return `${r.lanes} lanes`
+    case 'rowWidth': return `${r.rowWidthM} m`
+    case 'carriagewayWidth': return `${r.carriagewayWidthM} m`
+    case 'municipality': return r.name
+    case 'bridges': return r.name
+    default: return ''
+  }
+}
+
+function bandValueAt(layers, key, km){
+  const arr = bandArrayByKey(layers, key)
+  for (const r of arr){
+    if (km >= r.startKm - EPS && km <= r.endKm + EPS){
+      return bandValue(key, r)
+    }
+  }
+  return null
+}
 
 function mergeRanges(arr = [], props) {
   if (!arr.length) return []
@@ -36,6 +85,9 @@ export default function App() {
   const [allLayers, setAllLayers] = useState(null)
   const [layers, setLayers] = useState(null)
   const [guideKm, setGuideKm] = useState(null)
+  const [hoverKm, setHoverKm] = useState(null)
+  const [kmToX, setKmToX] = useState(null)
+  const [roadLayout, setRoadLayout] = useState({ axisY:0, totalH:0 })
 
   const [fromKm, setFromKm] = useState(0)
   const [toKm, setToKm] = useState(10)
@@ -196,6 +248,20 @@ export default function App() {
     setAllLayers(ly)
   }
 
+  const activeKm = guideKm ?? (showGuide ? hoverKm : null)
+  const hoverX = activeKm != null && kmToX ? kmToX(activeKm) : null
+  const bandValues = useMemo(() => {
+    if (activeKm == null) return []
+    const out = []
+    for (const g of bandGroups) {
+      for (const b of g.bands) {
+        const v = bandValueAt(layers, b.key, activeKm)
+        if (v) out.push({ title:b.title, value:v })
+      }
+    }
+    return out
+  }, [bandGroups, layers, activeKm])
+
   return (
     <div style={{ fontFamily:'Inter, system-ui, Arial', background:'#f0f2f5', minHeight:'100vh' }}>
       <div style={{ maxWidth: 1400, margin:'0 auto', padding:'16px' }}>
@@ -236,19 +302,59 @@ export default function App() {
           kmPosts={layers?.kmPosts}
         />
 
-        <SLDCanvasV2
-          road={currentRoad}
-          layers={layers}
-          domain={domain}
-          onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
-          bands={[]}
-          onMoveSeam={handleMoveSeam}
-          canEditSeams={editSeams}
-          showGuide={showGuide}
-          guideKm={guideKm}
-        />
-
-        <BandAccordion groups={bandGroups} layers={layers} domain={domain} />
+        <div style={{ border:'1px solid #e0e0e0', borderRadius:8, background:'#fff', padding:8, marginTop:8 }}>
+          <div style={{ fontWeight:700, marginBottom:6 }}>
+            {currentRoad?.name ?? 'Road'} — Editable Independent Bands
+          </div>
+          <div style={{ position:'relative' }}>
+            <SLDCanvasV2
+              road={currentRoad}
+              layers={layers}
+              domain={domain}
+              onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
+              bands={[]}
+              onMoveSeam={handleMoveSeam}
+              canEditSeams={editSeams}
+              showGuide={showGuide}
+              onHoverKm={setHoverKm}
+              onKmToX={setKmToX}
+              onLayout={setRoadLayout}
+            />
+            <BandAccordion groups={bandGroups} layers={layers} domain={domain} />
+            {activeKm != null && hoverX != null && (
+              <>
+                <div
+                  style={{ position:'absolute', top:0, bottom:0, left:hoverX, width:1, background:'#FFC107', pointerEvents:'none', zIndex:10 }}
+                />
+                <div
+                  style={{
+                    position:'absolute',
+                    left:hoverX,
+                    top: roadLayout.axisY - 8,
+                    transform:'translate(-50%, -100%)',
+                    background:'rgba(0,0,0,0.7)',
+                    color:'#fff',
+                    borderRadius:4,
+                    padding:'2px 4px',
+                    fontSize:11,
+                    pointerEvents:'none',
+                    zIndex:10,
+                    whiteSpace:'nowrap'
+                  }}
+                >
+                  <div>{formatLRP(activeKm, layers?.kmPosts)}</div>
+                  <div>{formatChainage(Math.round(activeKm * 1000))}</div>
+                  {bandValues.map(b => (
+                    <div key={b.title}>{b.title}: {b.value}</div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+          <div style={{ fontSize:12, color:'#616161', marginTop:6 }}>
+            Drag seams to edit. Bridges allow gaps and support dragging either edge. Pan by dragging; scroll to zoom.
+          </div>
+        </div>
       </div>
     </div>
   )

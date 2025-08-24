@@ -86,8 +86,10 @@ export default function SLDCanvasV2({
   bands = DEFAULT_BANDS,
   onMoveSeam,        // (bandKey, leftId, rightId, km, extra={})
   showGuide,
-  guideKm,
   canEditSeams,
+  onHoverKm,
+  onKmToX,
+  onLayout,
 }) {
   const canvasRef = useRef(null)
   const [panX, setPanX] = useState(0)
@@ -96,13 +98,9 @@ export default function SLDCanvasV2({
   const rafRef      = useRef(0)
   const helpersRef  = useRef({ kmToX:(km)=>km, xToKm:(x)=>x })
   const dragRef     = useRef(null)
-  const [hoverKm, setHoverKm] = useState(null)
-
   const lengthKm = Number(road?.lengthKm || 0)
   const fromKm = Math.max(0, domain?.fromKm ?? 0)
   const toKm   = Math.min(lengthKm, domain?.toKm ?? lengthKm)
-
-  useEffect(() => { if (!showGuide || guideKm != null) setHoverKm(null) }, [showGuide, guideKm])
 
   useEffect(()=>{
     const el = canvasRef.current; if(!el) return
@@ -218,6 +216,8 @@ export default function SLDCanvasV2({
     const kmToX = (km) => LEFT_PAD + panX + km*zoom
     const xToKm = (x) => (x - LEFT_PAD - panX) / zoom
     helpersRef.current = { kmToX, xToKm }
+    onKmToX?.(kmToX)
+    onLayout?.(layout)
 
     // background
     ctx.fillStyle = '#efe9d5'
@@ -714,8 +714,10 @@ export default function SLDCanvasV2({
           km = seam.left.endKm
         }
       }
-      setHoverKm(km)
-    } else setHoverKm(null)
+      onHoverKm?.(km)
+    } else {
+      onHoverKm?.(null)
+    }
 
     const drag = dragRef.current
     if (!drag) return
@@ -788,126 +790,20 @@ export default function SLDCanvasV2({
   }
 
   const onMouseLeave = () => {
-    setHoverKm(null)
+    onHoverKm?.(null)
   }
 
-  const activeKm = guideKm ?? (showGuide ? hoverKm : null)
-  // Use current pan and zoom state to compute the guide position directly.
-  // `helpersRef` is updated asynchronously after drawing, which caused
-  // the guide to render at a stale offset until the user moved the mouse.
-  // Deriving the X coordinate from `panX` and `zoom` keeps it in sync
-  // immediately when a search or domain change occurs.
-  const hoverX =
-    activeKm == null ? null : LEFT_PAD + panX + activeKm * zoom
-
   return (
-    <div style={{ border:'1px solid #e0e0e0', borderRadius:8, background:'#fff', padding:8 }}>
-      <div style={{ fontWeight:700, marginBottom:6 }}>
-        {road?.name ?? 'Road'} — Editable Independent Bands
-      </div>
-      <div style={{ position:'relative', width:'100%', height: layout.totalH }}>
-        <canvas
-          ref={canvasRef}
-          style={{ width:'100%', height: layout.totalH, display:'block', cursor:'grab' }}
-          width={1200}
-          height={layout.totalH}
-          onWheel={onWheel}
-          onMouseDown={onMouseDown}
-          onMouseMove={onMouseMove}
-          onMouseUp={onMouseUp}
-          onMouseLeave={onMouseLeave}
-        />
-        {activeKm != null && (
-          <>
-            <div style={{ position:'absolute', top:0, bottom:0, left:hoverX, width:1, background:'#FFC107', pointerEvents:'none' }} />
-            {layout.bandBoxes.map((b) => {
-              const v = valuesAt(b.key, activeKm)
-              if (v.center) {
-                return (
-                  <div
-                    key={b.key}
-                    style={{
-                      position:'absolute',
-                      left:hoverX,
-                      top: b.y + b.h/2 - 4,
-                      transform:'translate(-50%, -50%)',
-                      background:'rgba(0,0,0,0.7)',
-                      color:'#fff',
-                      borderRadius:4,
-                      padding:'2px 4px',
-                      fontSize:11,
-                      pointerEvents:'none',
-                      whiteSpace:'nowrap'
-                    }}
-                  >{v.center}</div>
-                )
-              }
-              if (v.left || v.right) {
-                return (
-                  <React.Fragment key={b.key}>
-                    {v.left && (
-                      <div
-                        style={{
-                          position:'absolute',
-                          left:hoverX,
-                          top: b.y + b.h/2 - 4,
-                          transform:'translate(-100%, -50%) translateX(-4px)',
-                          background:'rgba(0,0,0,0.7)',
-                          color:'#fff',
-                          borderRadius:4,
-                          padding:'2px 4px',
-                          fontSize:11,
-                          pointerEvents:'none',
-                          whiteSpace:'nowrap'
-                        }}
-                      >{v.left}</div>
-                    )}
-                    {v.right && (
-                      <div
-                        style={{
-                          position:'absolute',
-                          left:hoverX,
-                          top: b.y + b.h/2 - 4,
-                          transform:'translate(0, -50%) translateX(4px)',
-                          background:'rgba(0,0,0,0.7)',
-                          color:'#fff',
-                          borderRadius:4,
-                          padding:'2px 4px',
-                          fontSize:11,
-                          pointerEvents:'none',
-                          whiteSpace:'nowrap'
-                        }}
-                      >{v.right}</div>
-                    )}
-                  </React.Fragment>
-                )
-              }
-              return null
-            })}
-            <div
-              style={{
-                position:'absolute',
-                left:hoverX,
-                top: layout.axisY - 8,
-                transform:'translate(-50%, -100%)',
-                background:'rgba(0,0,0,0.7)',
-                color:'#fff',
-                borderRadius:4,
-                padding:'2px 4px',
-                fontSize:11,
-                pointerEvents:'none',
-                textAlign:'center'
-              }}
-            >
-              <div>{formatLRP(activeKm, layers?.kmPosts)}</div>
-              <div>{formatChainage(Math.round(activeKm * 1000))}</div>
-            </div>
-          </>
-        )}
-      </div>
-      <div style={{ fontSize:12, color:'#616161', marginTop:6 }}>
-        Drag seams to edit. Bridges allow gaps and support dragging either edge. Pan by dragging; scroll to zoom.
-      </div>
-    </div>
+    <canvas
+      ref={canvasRef}
+      style={{ width:'100%', height: layout.totalH, display:'block', cursor:'grab' }}
+      width={1200}
+      height={layout.totalH}
+      onWheel={onWheel}
+      onMouseDown={onMouseDown}
+      onMouseMove={onMouseMove}
+      onMouseUp={onMouseUp}
+      onMouseLeave={onMouseLeave}
+    />
   )
 }
