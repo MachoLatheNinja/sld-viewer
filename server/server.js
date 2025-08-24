@@ -3,7 +3,7 @@ const cors = require('cors')
 const bodyParser = require('body-parser')
 require('dotenv').config({ path: './.env' })
 
-const { PrismaClient } = require('@prisma/client')
+const { PrismaClient, Prisma } = require('@prisma/client')
 const prisma = new PrismaClient()
 
 const app = express()
@@ -16,12 +16,13 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v)) // used for non-bridg
 
 // ---------- helpers ----------
 const BAND_META = {
-  surface:      { client: (tx)=>tx.surfaceBand,      valueField: 'surface'    },
+  surface:      { client: (tx)=>tx.surfaceBand,      valueFields: ['surface','surfacePerLane'] },
   aadt:         { client: (tx)=>tx.aadtBand,         valueField: 'aadt'       },
   status:       { client: (tx)=>tx.statusBand,       valueField: 'status'     },
   quality:      { client: (tx)=>tx.qualityBand,      valueField: 'quality'    },
   lanes:        { client: (tx)=>tx.lanesBand,        valueField: 'lanes'      },
   rowWidth:     { client: (tx)=>tx.rowWidthBand,     valueField: 'rowWidthM'  },
+  carriagewayWidth: { client: (tx)=>tx.carriagewayWidthBand, valueField: 'carriagewayWidthM' },
   municipality: { client: (tx)=>tx.municipalityBand, valueField: 'name'       },
   bridges:      { client: (tx)=>tx.bridgeBand,       valueField: 'name'       },
 }
@@ -29,6 +30,11 @@ const BAND_META = {
 function eqVal(a,b){
   if (typeof a === 'number' && typeof b === 'number') return Math.abs(a-b) < EPS
   return a === b
+}
+
+function eqRow(a = {}, b = {}, meta = {}){
+  const fields = meta.valueFields || (meta.valueField ? [meta.valueField] : [])
+  return fields.every(f => eqVal(a[f], b[f]))
 }
 
 // ---------- health ----------
@@ -46,14 +52,14 @@ app.get('/api/roads', async (req, res) => {
 
 // all layers (per-band tables)
 app.get('/api/roads/:id/layers', async (req, res) => {
-  const roadId = Number(req.params.id)
+  const roadId = req.params.id
   const road = await prisma.road.findUnique({ where: { id: roadId } })
   if (!road) return res.status(404).json({ error: 'Road not found' })
   const sections = await prisma.section.findMany({ where: { roadId }, orderBy: [{ startM: 'asc' }, { id: 'asc' }] })
   const sectionIds = sections.map(s => s.id)
 
   const [
-    surface, aadt, status, quality, lanes, rowWidth, municipality, bridges, kmPosts
+    surface, aadt, status, quality, lanes, rowWidth, carriagewayWidth, municipality, bridges, kmPosts, miow
   ] = await Promise.all([
     prisma.surfaceBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
     prisma.aadtBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
@@ -61,12 +67,23 @@ app.get('/api/roads/:id/layers', async (req, res) => {
     prisma.qualityBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
     prisma.lanesBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
     prisma.rowWidthBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
+    prisma.carriagewayWidthBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
     prisma.municipalityBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
     prisma.bridgeBand.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ startM:'asc' }, { id:'asc' }] }),
     prisma.kmPost.findMany({ where: { sectionId: { in: sectionIds } }, orderBy: [{ chainageM:'asc' }, { id:'asc' }] }),
+    prisma.$queryRaw`SELECT * FROM public.gaa_miow WHERE infra_id IN (${Prisma.join(sectionIds)}) ORDER BY infra_year DESC, start_chainage ASC`,
   ])
 
-  res.json({ road, sections, surface, aadt, status, quality, lanes, rowWidth, municipality, bridges, kmPosts })
+  const miowBands = miow.map(r => ({
+    id: r.id,
+    sectionId: r.infra_id,
+    startM: parseFloat(r.start_chainage) || 0,
+    endM: parseFloat(r.end_chainage) || 0,
+    year: r.infra_year ? Number(r.infra_year) : null,
+    typeOfWork: r.type_of_work,
+  }))
+
+  res.json({ road, sections, surface, aadt, status, quality, lanes, rowWidth, carriagewayWidth, municipality, bridges, kmPosts, miow: miowBands })
 })
 
 /**
@@ -82,7 +99,7 @@ app.get('/api/roads/:id/layers', async (req, res) => {
  *   bridges:     { leftId?:number, rightId?:number, m:number, edge:'start'|'end' }
  */
 app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
-  const roadId = Number(req.params.id)
+  const roadId = req.params.id
   const band = String(req.params.band)
   const meta = BAND_META[band]
   if (!meta) return res.status(400).json({ error: 'Unknown band' })
@@ -120,7 +137,7 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
           const leftAfter = await T.findUnique({ where: { id: left.id } })
           if (leftNeighbor && leftNeighbor.id !== leftAfter.id &&
               Math.abs(leftNeighbor.endM - leftAfter.startM) < EPS &&
-              eqVal(leftNeighbor[meta.valueField], leftAfter[meta.valueField])) {
+              eqRow(leftNeighbor, leftAfter, meta)) {
             await T.delete({ where: { id: leftNeighbor.id } })
             await T.update({ where: { id: leftAfter.id }, data: { startM: leftNeighbor.startM } })
           }
@@ -143,7 +160,7 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
           const rightAfter = await T.findUnique({ where: { id: right.id } })
           if (rightNeighbor && rightNeighbor.id !== rightAfter.id &&
               Math.abs(rightNeighbor.startM - rightAfter.endM) < EPS &&
-              eqVal(rightNeighbor[meta.valueField], rightAfter[meta.valueField])) {
+              eqRow(rightNeighbor, rightAfter, meta)) {
             await T.delete({ where: { id: rightNeighbor.id } })
             await T.update({ where: { id: rightAfter.id }, data: { endM: rightNeighbor.endM } })
           }
@@ -178,7 +195,7 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
         const leftAfter = await T.findUnique({ where: { id: left.id } })
         if (leftNeighbor && leftNeighbor.id !== leftAfter.id &&
             Math.abs(leftNeighbor.endM - leftAfter.startM) < EPS &&
-            eqVal(leftNeighbor[meta.valueField], leftAfter[meta.valueField])) {
+            eqRow(leftNeighbor, leftAfter, meta)) {
           await T.delete({ where: { id: leftNeighbor.id } })
           await T.update({ where: { id: leftAfter.id }, data: { startM: leftNeighbor.startM } })
         }
@@ -190,7 +207,7 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
         const rightAfter = await T.findUnique({ where: { id: right.id } })
         if (rightNeighbor && rightNeighbor.id !== rightAfter.id &&
             Math.abs(rightNeighbor.startM - rightAfter.endM) < EPS &&
-            eqVal(rightNeighbor[meta.valueField], rightAfter[meta.valueField])) {
+            eqRow(rightNeighbor, rightAfter, meta)) {
           await T.delete({ where: { id: rightNeighbor.id } })
           await T.update({ where: { id: rightAfter.id }, data: { endM: rightNeighbor.endM } })
         }
