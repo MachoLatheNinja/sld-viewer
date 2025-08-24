@@ -20,9 +20,10 @@ function formatAADT(n){
   return n==null ? '' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 }
 
-export default function BandTrack({ band, layers, domain, activeKm }) {
+export default function BandTrack({ band, layers, domain, activeKm, guideLeft, contentRef }) {
   const canvasRef = useRef(null)
   const pillRef = useRef(null)
+  const trackRef = useRef(null)
   const [width, setWidth] = useState(0)
   const height = Math.max(18, Math.min(20, Number(band.height) || 20))
 
@@ -111,21 +112,27 @@ export default function BandTrack({ band, layers, domain, activeKm }) {
   const kmToX = (km) => LEFT_PAD + (km - fromKm) * scale
   const segment = activeKm != null ? bandSegmentAt(layers, band.key, activeKm) : null
   const label = segment ? bandValue(band.key, segment) : null
-  const rawX = activeKm != null && width ? kmToX(activeKm) : null
   const pillW = pillRef.current?.offsetWidth || 0
   const segStart = segment ? kmToX(segment.startKm) : 0
   const segEnd = segment ? kmToX(segment.endKm) : width
-  const clampedX = rawX == null ? null : Math.max(segStart + pillW / 2, Math.min(segEnd - pillW / 2, rawX))
+  let left = null
+  if (guideLeft != null && contentRef?.current && trackRef.current) {
+    const trackRect = trackRef.current.getBoundingClientRect()
+    const contentRect = contentRef.current.getBoundingClientRect()
+    left = guideLeft - trackRect.left + contentRect.left
+    left = Math.max(segStart + pillW / 2, Math.min(segEnd - pillW / 2, left))
+    left = Math.round(left)
+  }
 
   return (
-    <div style={{ position:'relative', height, overflow:'visible' }}>
+    <div ref={trackRef} style={{ position:'relative', height, overflow:'visible' }}>
       <canvas ref={canvasRef} style={{ width:'100%', height }} />
-      {label && clampedX != null && (
+      {label && left != null && (
         <div
           ref={pillRef}
           style={{
             position:'absolute',
-            left: clampedX,
+            left,
             top:'50%',
             transform:'translate(-50%, -50%)',
             background:'rgba(0,0,0,0.7)',

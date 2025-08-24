@@ -43,6 +43,7 @@ export default function App() {
   const [hoverKm, setHoverKm] = useState(null)
   const [kmToX, setKmToX] = useState(null)
   const hoverClientX = useRef(null)
+  const contentRef = useRef(null)
 
   const [fromKm, setFromKm] = useState(0)
   const [toKm, setToKm] = useState(10)
@@ -205,6 +206,7 @@ export default function App() {
 
   const activeKm = guideKm ?? (showGuide ? hoverKm : null)
   const hoverX = activeKm != null && kmToX ? kmToX(activeKm) : null
+  const guideLeft = hoverX != null ? Math.round(hoverX) : null
 
   const handlePanelMouseMove = (e) => {
     if (!kmToX) return
@@ -279,6 +281,7 @@ export default function App() {
             {currentRoad?.name ?? 'Road'} — Editable Independent Bands
           </div>
           <div
+            ref={contentRef}
             style={{ position:'relative', overflowX:'auto' }}
             onMouseMove={handlePanelMouseMove}
             onMouseLeave={handlePanelMouseLeave}
@@ -296,17 +299,24 @@ export default function App() {
               onHoverKm={setHoverKm}
               onKmToX={(fn) => setKmToX(() => fn)}
             />
-            <BandAccordion groups={bandGroups} layers={layers} domain={domain} activeKm={activeKm} />
-            {activeKm != null && hoverX != null && (
+            <BandAccordion
+              groups={bandGroups}
+              layers={layers}
+              domain={domain}
+              activeKm={activeKm}
+              guideLeft={guideLeft}
+              contentRef={contentRef}
+            />
+            {activeKm != null && guideLeft != null && (
               <div
-                style={{ position:'absolute', top:0, bottom:0, left:hoverX, width:1, background:'#FFC107', pointerEvents:'none', zIndex:10 }}
+                style={{ position:'absolute', top:0, bottom:0, left:guideLeft, width:1, background:'#FFC107', pointerEvents:'none', zIndex:10 }}
               />
             )}
-            {activeKm != null && hoverX != null && (
+            {activeKm != null && guideLeft != null && (
               <div
                 style={{
                   position:'absolute',
-                  left:hoverX,
+                  left:guideLeft,
                   top:0,
                   transform:'translate(-50%, -100%)',
                   background:'rgba(0,0,0,0.7)',
