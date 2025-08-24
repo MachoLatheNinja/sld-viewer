@@ -76,6 +76,33 @@ export function bandSegmentAt(layers, key, km) {
   return null
 }
 
+// Return one or two segments at the given km. If km falls exactly on a seam
+// shared by adjacent segments, both the left and right segments are returned
+// in [left, right] order; otherwise a single containing segment is returned.
+export function bandSegmentsAt(layers, key, km) {
+  const arr = bandArrayByKey(layers, key)
+  for (let i = 0; i < arr.length; i++) {
+    const r = arr[i]
+    if (km >= r.startKm - EPS && km <= r.endKm + EPS) {
+      // km lies within this segment; check if it is also the end/start seam
+      if (Math.abs(km - r.endKm) < EPS && i + 1 < arr.length) {
+        const next = arr[i + 1]
+        if (Math.abs(km - next.startKm) < EPS) {
+          return [r, next]
+        }
+      }
+      if (Math.abs(km - r.startKm) < EPS && i > 0) {
+        const prev = arr[i - 1]
+        if (Math.abs(km - prev.endKm) < EPS) {
+          return [prev, r]
+        }
+      }
+      return [r]
+    }
+  }
+  return []
+}
+
 export function bandValueAt(layers, key, km) {
   const seg = bandSegmentAt(layers, key, km)
   return seg ? bandValue(key, seg) : null

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react'
-import { bandValue, bandSegmentAt } from '../bands'
+import { bandValue, bandSegmentsAt } from '../bands'
 const SURFACE_COLORS = { Asphalt:'#282828', Concrete:'#a1a1a1', Gravel:'#8d6e63' }
 const QUALITY_COLORS = { Poor:'#ffb54c', Fair:'#f8d66d', Good:'#7abd7e', Bad:'#ff6961' }
 const STATUS_COLORS  = { Open:'#9e9e9e', Closed:'#d32f2f' }
@@ -98,8 +98,7 @@ export default function BandTrack({ band, layers, domain, activeKm, guideLeft, c
     }
   }, [band, layers, domain, height, scale])
 
-  const segment = activeKm != null ? bandSegmentAt(layers, band.key, activeKm) : null
-  const label = segment ? bandValue(band.key, segment) : null
+  const segments = activeKm != null ? bandSegmentsAt(layers, band.key, activeKm) : []
   let left = null
   if (guideLeft != null && contentRef?.current && trackRef.current) {
     const trackRect = trackRef.current.getBoundingClientRect()
@@ -108,29 +107,38 @@ export default function BandTrack({ band, layers, domain, activeKm, guideLeft, c
     left = Math.round(left)
   }
 
+  const baseStyle = {
+    position: 'absolute',
+    left,
+    top: '50%',
+    background: 'rgba(0,0,0,0.7)',
+    color: '#fff',
+    borderRadius: 9999,
+    padding: '0 6px',
+    fontSize: 11,
+    whiteSpace: 'nowrap',
+    pointerEvents: 'none',
+    zIndex: 40,
+  }
+
   return (
     <div ref={trackRef} data-band-key={band.key} style={{ position:'relative', height, overflow:'visible' }}>
       <canvas ref={canvasRef} style={{ width:'100%', height }} />
-      {label && left != null && (
-        <div
-          style={{
-            position:'absolute',
-            left,
-            top:'50%',
-            transform:'translate(-50%, -50%)',
-            background:'rgba(0,0,0,0.7)',
-            color:'#fff',
-            borderRadius:9999,
-            padding:'0 6px',
-            fontSize:11,
-            whiteSpace:'nowrap',
-            pointerEvents:'none',
-            zIndex:40,
-          }}
-        >
-          {label}
-        </div>
-      )}
+      {left != null && segments.length > 0 && segments.map((seg, idx) => {
+        const lbl = bandValue(band.key, seg)
+        if (!lbl) return null
+        let transform = 'translate(-50%, -50%)'
+        if (segments.length === 2) {
+          transform = idx === 0
+            ? 'translate(calc(-100% - 2px), -50%)'
+            : 'translate(2px, -50%)'
+        }
+        return (
+          <div key={idx} style={{ ...baseStyle, transform }}>
+            {lbl}
+          </div>
+        )
+      })}
     </div>
   )
 }
