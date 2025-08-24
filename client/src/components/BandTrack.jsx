@@ -1,8 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef } from 'react'
 import { bandValue, bandSegmentAt } from '../bands'
-
-const LEFT_PAD = 0
-const RIGHT_PAD = 16
 const SURFACE_COLORS = { Asphalt:'#282828', Concrete:'#a1a1a1', Gravel:'#8d6e63' }
 const QUALITY_COLORS = { Poor:'#ffb54c', Fair:'#f8d66d', Good:'#7abd7e', Bad:'#ff6961' }
 const STATUS_COLORS  = { Open:'#9e9e9e', Closed:'#d32f2f' }
@@ -20,17 +17,15 @@ function formatAADT(n){
   return n==null ? '' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 }
 
-export default function BandTrack({ band, layers, domain, activeKm, guideLeft, contentRef }) {
+export default function BandTrack({ band, layers, domain, activeKm, guideLeft, contentRef, scale }) {
   const canvasRef = useRef(null)
   const trackRef = useRef(null)
-  const [width, setWidth] = useState(0)
   const height = Math.max(18, Math.min(20, Number(band.height) || 20))
 
   useEffect(() => {
-    const canvas = canvasRef.current; if (!canvas) return
+    const canvas = canvasRef.current; if (!canvas || !scale) return
     const ctx = canvas.getContext('2d')
     const w = canvas.clientWidth || 1200
-    setWidth(w)
     const h = height
     const dpr = window.devicePixelRatio || 1
     canvas.width = w * dpr
@@ -40,28 +35,27 @@ export default function BandTrack({ band, layers, domain, activeKm, guideLeft, c
 
     const fromKm = domain?.fromKm ?? 0
     const toKm = domain?.toKm ?? 1
-    const spanKm = Math.max(0.0001, toKm - fromKm)
-    const scale = (w - LEFT_PAD - RIGHT_PAD) / spanKm
-    const kmToX = km => LEFT_PAD + (km - fromKm) * scale
 
     const drawRanges = (ranges, colorFn, labelFn) => {
       ctx.font = '12px system-ui'
       ctx.textBaseline = 'middle'
       ;(ranges || []).forEach(r => {
         if (r.endKm < fromKm || r.startKm > toKm) return
-        const x1 = kmToX(Math.max(r.startKm, fromKm))
-        const x2 = kmToX(Math.min(r.endKm, toKm))
-        const segW = Math.max(0, x2 - x1)
+        const { x, w:segW } = scale.rectPx(
+          Math.max(r.startKm, fromKm) * 1000,
+          Math.min(r.endKm, toKm) * 1000
+        )
+        if (segW <= 0) return
         const color = colorFn(r)
         ctx.fillStyle = color
-        ctx.fillRect(x1, 0, segW, h)
+        ctx.fillRect(x, 0, segW, h)
         const label = labelFn ? labelFn(r) : ''
         if (label) {
           const textW = ctx.measureText(label).width
           if (segW >= textW + 4) {
             ctx.fillStyle = '#000'
             ctx.textAlign = 'left'
-            ctx.fillText(label, x1 + 2, h / 2)
+            ctx.fillText(label, x + 2, h / 2)
           }
         }
       })
@@ -102,13 +96,8 @@ export default function BandTrack({ band, layers, domain, activeKm, guideLeft, c
         }
         break
     }
-  }, [band, layers, domain, height])
+  }, [band, layers, domain, height, scale])
 
-  const fromKm = domain?.fromKm ?? 0
-  const toKm = domain?.toKm ?? 1
-  const spanKm = Math.max(0.0001, toKm - fromKm)
-  const scale = width ? (width - LEFT_PAD - RIGHT_PAD) / spanKm : 0
-  const kmToX = (km) => LEFT_PAD + (km - fromKm) * scale
   const segment = activeKm != null ? bandSegmentAt(layers, band.key, activeKm) : null
   const label = segment ? bandValue(band.key, segment) : null
   let left = null

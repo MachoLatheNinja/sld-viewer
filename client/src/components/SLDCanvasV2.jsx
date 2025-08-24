@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { DEFAULT_BANDS } from '../bands'
 import { parseLrpKm, formatLRP } from '../lrp'
+import { createMeterScale } from '../scale'
 
 const SURFACE_COLORS = { Asphalt:'#282828', Concrete:'#a1a1a1', Gravel:'#8d6e63' }
 const LANE_SURFACE_MAP = { A:'Asphalt', C:'Concrete', G:'Gravel' }
@@ -18,8 +19,8 @@ const KM_POST_Y_OFFSET = -6
 
 const GAP = 8
 const TOP_PAD = 24
-const LEFT_PAD = 60
-const RIGHT_PAD = 16
+const LEFT_PAD = 0
+const RIGHT_PAD = 0
 const AXIS_H = 20
 
 const MIN_BAND_H = 20
@@ -88,7 +89,7 @@ export default function SLDCanvasV2({
   showGuide,
   canEditSeams,
   onHoverKm,
-  onKmToX,
+  onScale,
   onLayout,
 }) {
   const canvasRef = useRef(null)
@@ -105,7 +106,7 @@ export default function SLDCanvasV2({
   useEffect(()=>{
     const el = canvasRef.current; if(!el) return
     const w = el.clientWidth || 1200
-    const desiredZoom = (w - LEFT_PAD - RIGHT_PAD) / Math.max(0.001, (toKm - fromKm))
+    const desiredZoom = w / Math.max(0.001, (toKm - fromKm))
     setZoom(desiredZoom)
     setPanX(-fromKm * desiredZoom)
   }, [fromKm, toKm, lengthKm])
@@ -213,10 +214,13 @@ export default function SLDCanvasV2({
     canvas.height = h * dpr
     ctx.setTransform(dpr,0,0,dpr,0,0)
 
-    const kmToX = (km) => LEFT_PAD + panX + km*zoom
-    const xToKm = (x) => (x - LEFT_PAD - panX) / zoom
-    helpersRef.current = { kmToX, xToKm }
-    onKmToX?.(kmToX)
+    const startM = fromKm * 1000
+    const pxPerM = zoom / 1000
+    const scale = createMeterScale(startM, pxPerM)
+    const kmToX = (km) => scale.cssLeftFromM(km * 1000)
+    const xToKm = (x) => (x / scale.pxPerM + scale.startM) / 1000
+    helpersRef.current = { kmToX, xToKm, ...scale }
+    onScale?.(scale)
     onLayout?.(layout)
 
     // background
@@ -428,17 +432,19 @@ export default function SLDCanvasV2({
       if (!ranges) return
       const titleY = box.y + Math.min(16, box.h-6)
       const trackH = box.h - 6
-      const trackW = w - LEFT_PAD - RIGHT_PAD
+      const trackW = w
       const trackY = box.y
 
       ctx.fillStyle = '#f5f5f5'
-      ctx.fillRect(LEFT_PAD, trackY, trackW, trackH)
+      ctx.fillRect(0, trackY, trackW, trackH)
 
       for (const r of ranges) {
         if (r.endKm < fromKm || r.startKm > toKm) continue
-        const x1 = Math.round(kmToX(Math.max(r.startKm, fromKm)))
-        const x2 = Math.round(kmToX(Math.min(r.endKm, toKm)))
-        const ww = Math.max(1, x2 - x1)
+        const { x, w:ww } = scale.rectPx(
+          Math.max(r.startKm, fromKm) * 1000,
+          Math.min(r.endKm, toKm) * 1000
+        )
+        const x1 = x
         const fill = colorFn(r)
         if (fill && typeof fill === 'object') {
           if (fill.type === 'stripes') {
@@ -473,7 +479,9 @@ export default function SLDCanvasV2({
         for (let i = 0; i < ranges.length - 1; i++) {
           const seamKm = ranges[i].endKm
           if (seamKm <= fromKm || seamKm >= toKm) continue
-          const x = Math.round(kmToX(seamKm))
+          const next = ranges[i + 1]
+          if (next) console.assert(Math.abs(seamKm - next.startKm) < EPS)
+          const x = scale.strokeXFromM(seamKm * 1000)
           ctx.fillRect(x, trackY, 1, trackH)
         }
       }

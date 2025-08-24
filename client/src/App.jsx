@@ -43,7 +43,7 @@ export default function App() {
   const [guideKm, setGuideKm] = useState(null)
   const [hoverKm, setHoverKm] = useState(null)
   const [hoverLeft, setHoverLeft] = useState(null)
-  const [kmToX, setKmToX] = useState(null)
+  const [scale, setScale] = useState(null)
   const hoverClientX = useRef(null)
   const hoverBandKey = useRef(null)
   const contentRef = useRef(null)
@@ -209,15 +209,15 @@ export default function App() {
 
   const activeKm = guideKm ?? (showGuide ? hoverKm : null)
   const guideLeft = guideKm != null
-    ? (kmToX ? Math.round(kmToX(guideKm)) : null)
+    ? (scale ? Math.round(scale.cssLeftFromM(guideKm * 1000)) : null)
     : hoverLeft
 
   const handlePanelMouseMove = (e) => {
-    if (!kmToX) return
+    if (!scale) return
     hoverClientX.current = e.clientX
     const rect = e.currentTarget.getBoundingClientRect()
-    const a = kmToX(0)
-    const b = kmToX(1) - a
+    const a = scale.cssLeftFromM(0)
+    const b = scale.pxPerM * 1000
     const len = currentRoad?.lengthKm || 0
     const rawX = e.clientX - rect.left
     let px = Math.round(rawX)
@@ -232,7 +232,7 @@ export default function App() {
       for (const r of arr) {
         for (const seamKm of [r.startKm, r.endKm]) {
           if (seamKm <= fromKm || seamKm >= toKm) continue
-          const seamPx = Math.round(kmToX(seamKm))
+          const seamPx = Math.round(scale.cssLeftFromM(seamKm * 1000))
           if (Math.abs(seamPx - rawX) <= SNAP_PX) {
             px = seamPx
             snapped = true
@@ -257,10 +257,10 @@ export default function App() {
   }
 
   const handlePanelScroll = (e) => {
-    if (!kmToX || hoverClientX.current == null) return
+    if (!scale || hoverClientX.current == null) return
     const rect = e.currentTarget.getBoundingClientRect()
-    const a = kmToX(0)
-    const b = kmToX(1) - a
+    const a = scale.cssLeftFromM(0)
+    const b = scale.pxPerM * 1000
     const len = currentRoad?.lengthKm || 0
     const rawX = hoverClientX.current - rect.left
     let px = Math.round(rawX)
@@ -272,7 +272,7 @@ export default function App() {
       for (const r of arr) {
         for (const seamKm of [r.startKm, r.endKm]) {
           if (seamKm <= fromKm || seamKm >= toKm) continue
-          const seamPx = Math.round(kmToX(seamKm))
+          const seamPx = Math.round(scale.cssLeftFromM(seamKm * 1000))
           if (Math.abs(seamPx - rawX) <= SNAP_PX) {
             px = seamPx
             snapped = true
@@ -290,11 +290,11 @@ export default function App() {
   }
 
   const handlePanelWheel = (e) => {
-    if (!kmToX) return
+    if (!scale) return
     e.preventDefault()
     const rect = e.currentTarget.getBoundingClientRect()
-    const a = kmToX(0)
-    const b = kmToX(1) - a
+    const a = scale.cssLeftFromM(0)
+    const b = scale.pxPerM * 1000
     const x = e.clientX - rect.left
     const mouseKm = (x - a) / b
     const length = currentRoad?.lengthKm || 0
@@ -373,7 +373,7 @@ export default function App() {
               canEditSeams={editSeams}
               showGuide={showGuide}
               onHoverKm={setHoverKm}
-              onKmToX={(fn) => setKmToX(() => fn)}
+              onScale={setScale}
             />
             <BandAccordion
               groups={bandGroups}
@@ -382,6 +382,7 @@ export default function App() {
               activeKm={activeKm}
               guideLeft={guideLeft}
               contentRef={contentRef}
+              scale={scale}
             />
             {activeKm != null && guideLeft != null && (
               <div
