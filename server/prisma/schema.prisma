@@ -177,7 +177,7 @@ model gaa_miow {
   infra_year             BigInt?
   type_of_work           String?
   unit_of_measure        String?
-  physical_target        Decimal? @db.Numeric
+  physical_target        Decimal? @db.Decimal
   dominant               String?
   dsow                   String?
   infra_id               String?
