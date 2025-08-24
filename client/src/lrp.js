@@ -14,7 +14,7 @@ export function parseLrpKm(lrp) {
 export function formatLrpKm(kmVal) {
   const k = Math.floor(kmVal);
   const mPart = Math.round((kmVal - k) * 1000);
-  return `K${String(k).padStart(3, '0')} + ${String(mPart).padStart(4, '0')}`;
+  return `K0${String(k).padStart(3, '0')} + ${String(mPart).padStart(4, '0')}`;
 }
 
 export function formatLRP(km, posts = []) {
@@ -41,7 +41,7 @@ export function formatLRP(km, posts = []) {
       const baseKm = Math.floor(prevLrpKm);
       const baseOffsetM = (prevLrpKm - baseKm) * 1000;
       const offsetM = Math.round(baseOffsetM + (km - prev.chainageKm) * 1000);
-      return `K${String(baseKm).padStart(3, '0')} + ${String(offsetM).padStart(4, '0')}`;
+      return `K0${String(baseKm).padStart(3, '0')} + ${String(offsetM).padStart(4, '0')}`;
     }
   }
 
