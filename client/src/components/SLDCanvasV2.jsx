@@ -43,30 +43,29 @@ function laneColor(lanes) {
   return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`
 }
 
-function createStripePattern(ctx, light, dark) {
-  const pitch = 16
+function fillDiagonalStripes(ctx, x, y, w, h, light, dark, pitch = 12) {
   const stripe = pitch / 2
-  const diag = Math.ceil(pitch * Math.SQRT2)
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(x, y, w, h)
+  ctx.clip()
 
-  const tmp = document.createElement('canvas')
-  tmp.width = tmp.height = diag
-  const tctx = tmp.getContext('2d')
-  tctx.fillStyle = light
-  tctx.fillRect(0, 0, diag, diag)
-  tctx.fillStyle = dark
-  for (let x = 0; x < diag; x += pitch) {
-    tctx.fillRect(x, 0, stripe, diag)
+  ctx.fillStyle = light
+  ctx.fillRect(x, y, w, h)
+
+  const start = ((x - y) % pitch + pitch) % pitch
+  for (let px = x - start - h; px < x + w; px += pitch) {
+    ctx.beginPath()
+    ctx.moveTo(px, y)
+    ctx.lineTo(px + stripe, y)
+    ctx.lineTo(px + stripe - h, y + h)
+    ctx.lineTo(px - h, y + h)
+    ctx.closePath()
+    ctx.fillStyle = dark
+    ctx.fill()
   }
 
-  const pat = document.createElement('canvas')
-  pat.width = pat.height = pitch
-  const pctx = pat.getContext('2d')
-  pctx.translate(pitch / 2, pitch / 2)
-  pctx.rotate(Math.PI / 4)
-  pctx.translate(-diag / 2, -diag / 2)
-  pctx.drawImage(tmp, 0, 0)
-
-  return ctx.createPattern(pat, 'repeat')
+  ctx.restore()
 }
 
 
@@ -431,8 +430,13 @@ export default function SLDCanvasV2({
         const x1 = Math.round(kmToX(Math.max(r.startKm, fromKm)))
         const x2 = Math.round(kmToX(Math.min(r.endKm, toKm)))
         const ww = Math.max(1, x2 - x1)
-        ctx.fillStyle = colorFn(r)
-        ctx.fillRect(x1, trackY, ww, trackH)
+        const fill = colorFn(r)
+        if (fill && typeof fill === 'object' && fill.type === 'stripes') {
+          fillDiagonalStripes(ctx, x1, trackY, ww, trackH, fill.light, fill.dark, fill.pitch)
+        } else {
+          ctx.fillStyle = fill || '#bdbdbd'
+          ctx.fillRect(x1, trackY, ww, trackH)
+        }
 
         const lbl = labelFn ? labelFn(r) : ''
         if (lbl) {
@@ -462,14 +466,17 @@ export default function SLDCanvasV2({
       ctx.fillText(box.title, 4, titleY)
     }
 
-    const caacPattern = createStripePattern(ctx, '#a1a1a1', '#282828')
     for (const box of layout.bandBoxes) {
       switch (box.key) {
         case 'surface':
           drawRanges(
             box,
             layers?.surface,
-            r => (r.surfacePerLane === 'CAAC' ? caacPattern : (SURFACE_COLORS[r.surface]||'#bdbdbd')),
+            r => (
+              r.surfacePerLane === 'CAAC'
+                ? { type: 'stripes', light: '#a1a1a1', dark: '#282828', pitch: 12 }
+                : (SURFACE_COLORS[r.surface] || '#bdbdbd')
+            ),
             r => r.surfacePerLane || r.surface,
             r => (r.surfacePerLane === 'CAAC' ? '#282828' : '#fff')
           )
