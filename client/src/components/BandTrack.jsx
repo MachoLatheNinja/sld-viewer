@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
+import { bandValueAt } from '../bands'
 
 const LEFT_PAD = 0
 const RIGHT_PAD = 16
@@ -19,14 +20,17 @@ function formatAADT(n){
   return n==null ? '' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 }
 
-export default function BandTrack({ band, layers, domain }) {
+export default function BandTrack({ band, layers, domain, activeKm }) {
   const canvasRef = useRef(null)
+  const pillRef = useRef(null)
+  const [width, setWidth] = useState(0)
   const height = Math.max(18, Math.min(20, Number(band.height) || 20))
 
   useEffect(() => {
     const canvas = canvasRef.current; if (!canvas) return
     const ctx = canvas.getContext('2d')
     const w = canvas.clientWidth || 1200
+    setWidth(w)
     const h = height
     const dpr = window.devicePixelRatio || 1
     canvas.width = w * dpr
@@ -100,5 +104,41 @@ export default function BandTrack({ band, layers, domain }) {
     }
   }, [band, layers, domain, height])
 
-  return <canvas ref={canvasRef} style={{ width:'100%', height }} />
+  const fromKm = domain?.fromKm ?? 0
+  const toKm = domain?.toKm ?? 1
+  const spanKm = Math.max(0.0001, toKm - fromKm)
+  const scale = width ? (width - LEFT_PAD - RIGHT_PAD) / spanKm : 0
+  const kmToX = (km) => LEFT_PAD + (km - fromKm) * scale
+  const rawX = activeKm != null && width ? kmToX(activeKm) : null
+  const label = activeKm != null ? bandValueAt(layers, band.key, activeKm) : null
+  const pillW = pillRef.current?.offsetWidth || 0
+  const clampedX = rawX == null ? null : Math.max(pillW / 2, Math.min(width - pillW / 2, rawX))
+
+  return (
+    <div style={{ position:'relative', height, overflow:'visible' }}>
+      <canvas ref={canvasRef} style={{ width:'100%', height }} />
+      {label && clampedX != null && (
+        <div
+          ref={pillRef}
+          style={{
+            position:'absolute',
+            left: clampedX,
+            bottom:'100%',
+            transform:'translateX(-50%)',
+            background:'rgba(0,0,0,0.7)',
+            color:'#fff',
+            borderRadius:12,
+            padding:'0 6px',
+            fontSize:11,
+            whiteSpace:'nowrap',
+            pointerEvents:'none',
+            zIndex:40,
+            marginBottom:2,
+          }}
+        >
+          {label}
+        </div>
+      )}
+    </div>
+  )
 }

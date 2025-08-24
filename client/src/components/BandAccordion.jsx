@@ -3,7 +3,7 @@ import BandTrack from './BandTrack'
 
 const LABEL_W = 60
 
-export default function BandAccordion({ groups = [], layers, domain }) {
+export default function BandAccordion({ groups = [], layers, domain, activeKm }) {
   const [open, setOpen] = useState(() => new Set(groups.map(g => g.key)))
 
   const toggle = (key) => {
@@ -40,7 +40,7 @@ export default function BandAccordion({ groups = [], layers, domain }) {
                 const h = Math.max(18, Math.min(20, b.height || 20))
                 return (
                   <div key={b.key} style={{ margin:'2px 0' }}>
-                    <div style={{ display:'flex', height:h, border:'1px solid #e0e0e0', borderRadius:4, overflow:'hidden' }}>
+                    <div style={{ display:'flex', height:h, border:'1px solid #e0e0e0', borderRadius:4, overflow:'visible' }}>
                       <div
                         style={{
                           position:'sticky',
@@ -55,8 +55,8 @@ export default function BandAccordion({ groups = [], layers, domain }) {
                         <div style={{ width:4, alignSelf:'stretch', background:'#90caf9' }} />
                         <div style={{ padding:'0 8px', fontSize:12, whiteSpace:'nowrap' }}>{b.title}</div>
                       </div>
-                      <div style={{ flex:1 }}>
-                        <BandTrack band={{ ...b, height:h }} layers={layers} domain={domain} />
+                      <div style={{ flex:1, position:'relative', overflow:'visible' }}>
+                        <BandTrack band={{ ...b, height:h }} layers={layers} domain={domain} activeKm={activeKm} />
                       </div>
                     </div>
                   </div>
