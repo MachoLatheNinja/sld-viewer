@@ -443,7 +443,18 @@ export default function SLDCanvasV2({
           ctx.font = '11px system-ui'
           const textW = ctx.measureText(lbl).width
           if (textW + 4 <= ww) {
-            ctx.fillStyle = textColorFn ? textColorFn(r) : '#fff'
+            if (lbl === 'CAAC') {
+              const padding = 2
+              const rectW = textW + padding * 2
+              const rectH = 14
+              const rectX = x1 + (ww - rectW) / 2
+              const rectY = trackY + (trackH - rectH) / 2
+              ctx.fillStyle = '#a1a1a1'
+              ctx.fillRect(rectX, rectY, rectW, rectH)
+              ctx.fillStyle = '#fff'
+            } else {
+              ctx.fillStyle = textColorFn ? textColorFn(r) : '#fff'
+            }
             ctx.textAlign = 'center'
             ctx.fillText(lbl, x1 + ww / 2, trackY + (trackH / 2) + 3)
             ctx.textAlign = 'left'
@@ -477,8 +488,7 @@ export default function SLDCanvasV2({
                 ? { type: 'stripes', light: '#a1a1a1', dark: '#282828', pitch: 20 }
                 : (SURFACE_COLORS[r.surface] || '#bdbdbd')
             ),
-            r => r.surfacePerLane || r.surface,
-            r => (r.surfacePerLane === 'CAAC' ? '#282828' : '#fff')
+            r => r.surfacePerLane || r.surface
           )
           break
         case 'aadt':
