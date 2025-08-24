@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { fetchRoads, fetchLayers, moveBandSeam } from './api'
 import ControlBar from './components/ControlBar'
 import SLDCanvasV2 from './components/SLDCanvasV2'
-import { DEFAULT_BANDS } from './bands'
+import { DEFAULT_BAND_GROUPS } from './bands'
+import BandAccordion from './components/BandAccordion'
 import { lrpToChainageKm } from './lrp'
 
 const EPS = 1e-6
@@ -42,7 +43,8 @@ export default function App() {
   const [showGuide, setShowGuide] = useState(false)
   const [editSeams, setEditSeams] = useState(false)
 
-  const [bands, setBands] = useState(DEFAULT_BANDS)
+  const [bandGroups, setBandGroups] = useState(DEFAULT_BAND_GROUPS)
+  const bands = useMemo(() => bandGroups.flatMap(g => g.bands), [bandGroups])
   const domain = useMemo(() => ({ fromKm, toKm }), [fromKm, toKm])
   const currentSection = useMemo(() => sectionList.find(s => s.id === sectionId) || null, [sectionList, sectionId])
   const currentRoad = useMemo(() => {
@@ -145,14 +147,12 @@ export default function App() {
 
   useEffect(() => {
     const years = Array.from(new Set((allLayers?.miow || []).map(r => r.year))).sort((a,b) => b - a)
-    const nextBands = []
-    DEFAULT_BANDS.forEach(b => {
-      nextBands.push(b)
-      if (b.key === 'quality') {
-        years.forEach(y => nextBands.push({ key: `miow_${y}`, title: String(y), height: 28 }))
-      }
-    })
-    setBands(nextBands)
+    const next = DEFAULT_BAND_GROUPS.map(g => ({ ...g, bands:[...g.bands] }))
+    const hist = next.find(g => g.key === 'historical')
+    if (hist) {
+      hist.bands = years.map(y => ({ key:`miow_${y}`, title:String(y), height:28 }))
+    }
+    setBandGroups(next)
   }, [allLayers])
 
   const onSearch = () => {
@@ -236,6 +236,8 @@ export default function App() {
           onToggleEditSeams={()=>setEditSeams(e=>!e)}
           kmPosts={layers?.kmPosts}
         />
+
+        <BandAccordion groups={bandGroups} />
 
         <SLDCanvasV2
           road={currentRoad}
