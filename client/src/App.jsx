@@ -131,12 +131,26 @@ export default function App() {
 
   const onSearch = () => {
     const kmVal = lrpToChainageKm(q, allLayers?.kmPosts)
-    if (kmVal == null) return
-    const sec = sectionList.find(s => kmVal >= s.startKm && kmVal <= s.endKm)
-    if (sec) {
-      setGuideKm(kmVal - sec.startKm)
-      setSectionId(sec.id)
-      setShowGuide(true)
+    if (kmVal != null) {
+      const sec = sectionList.find(s => kmVal >= s.startKm && kmVal <= s.endKm)
+      if (sec) {
+        setGuideKm(kmVal - sec.startKm)
+        setSectionId(sec.id)
+        setShowGuide(true)
+      }
+      return
+    }
+
+    const bridge = allLayers?.bridges?.find(
+      b => b.name?.toLowerCase().includes(q.trim().toLowerCase())
+    )
+    if (bridge) {
+      const sec = sectionList.find(s => s.id === bridge.sectionId)
+      if (sec) {
+        setGuideKm(bridge.startKm - sec.startKm)
+        setSectionId(sec.id)
+        setShowGuide(true)
+      }
     }
   }
 
@@ -166,7 +180,7 @@ export default function App() {
             <input
               value={q}
               onChange={(e)=>setQ(e.target.value)}
-              placeholder="Search chainage…"
+              placeholder="Search chainage or bridge…"
               onKeyDown={(e)=>{ if(e.key==='Enter') onSearch() }}
               style={{ width: 260 }}
             />
