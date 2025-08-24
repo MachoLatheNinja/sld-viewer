@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchRoads, fetchLayers, moveBandSeam } from './api'
 import ControlBar from './components/ControlBar'
 import SLDCanvasV2 from './components/SLDCanvasV2'
@@ -294,10 +294,10 @@ export default function App() {
     setHoverLeft(px)
   }
 
-  const handlePanelWheel = (e) => {
+  const handlePanelWheel = useCallback((e) => {
     if (!scale) return
     e.preventDefault()
-    const rect = e.currentTarget.getBoundingClientRect()
+    const rect = (e.currentTarget || contentRef.current).getBoundingClientRect()
     const a = scale.cssLeftFromM(0)
     const b = scale.pxPerM * 1000
     const x = e.clientX - rect.left - LABEL_W
@@ -314,7 +314,14 @@ export default function App() {
     if (newTo <= newFrom) return
     setFromKm(newFrom)
     setToKm(newTo)
-  }
+  }, [scale, currentRoad, fromKm, toKm, setFromKm, setToKm])
+
+  useEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+    el.addEventListener('wheel', handlePanelWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handlePanelWheel)
+  }, [handlePanelWheel])
 
   return (
     <div style={{ fontFamily:'Inter, system-ui, Arial', background:'#f0f2f5', minHeight:'100vh' }}>
@@ -366,7 +373,6 @@ export default function App() {
             onMouseMove={handlePanelMouseMove}
             onMouseLeave={handlePanelMouseLeave}
             onScroll={handlePanelScroll}
-            onWheel={handlePanelWheel}
           >
             <div style={{ display:'flex' }}>
               <div
