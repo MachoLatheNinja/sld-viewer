@@ -311,7 +311,7 @@ export default function App() {
                   transform:'translate(-50%, -100%)',
                   background:'rgba(0,0,0,0.7)',
                   color:'#fff',
-                  borderRadius:12,
+                  borderRadius:9999,
                   padding:'0 6px',
                   fontSize:12,
                   whiteSpace:'nowrap',

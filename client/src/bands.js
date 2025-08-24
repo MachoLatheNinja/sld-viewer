@@ -66,12 +66,17 @@ export function bandValue(key, r) {
   }
 }
 
-export function bandValueAt(layers, key, km) {
+export function bandSegmentAt(layers, key, km) {
   const arr = bandArrayByKey(layers, key)
   for (const r of arr) {
     if (km >= r.startKm - EPS && km <= r.endKm + EPS) {
-      return bandValue(key, r)
+      return r
     }
   }
   return null
+}
+
+export function bandValueAt(layers, key, km) {
+  const seg = bandSegmentAt(layers, key, km)
+  return seg ? bandValue(key, seg) : null
 }

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { bandValueAt } from '../bands'
+import { bandValue, bandSegmentAt } from '../bands'
 
 const LEFT_PAD = 0
 const RIGHT_PAD = 16
@@ -109,10 +109,13 @@ export default function BandTrack({ band, layers, domain, activeKm }) {
   const spanKm = Math.max(0.0001, toKm - fromKm)
   const scale = width ? (width - LEFT_PAD - RIGHT_PAD) / spanKm : 0
   const kmToX = (km) => LEFT_PAD + (km - fromKm) * scale
+  const segment = activeKm != null ? bandSegmentAt(layers, band.key, activeKm) : null
+  const label = segment ? bandValue(band.key, segment) : null
   const rawX = activeKm != null && width ? kmToX(activeKm) : null
-  const label = activeKm != null ? bandValueAt(layers, band.key, activeKm) : null
   const pillW = pillRef.current?.offsetWidth || 0
-  const clampedX = rawX == null ? null : Math.max(pillW / 2, Math.min(width - pillW / 2, rawX))
+  const segStart = segment ? kmToX(segment.startKm) : 0
+  const segEnd = segment ? kmToX(segment.endKm) : width
+  const clampedX = rawX == null ? null : Math.max(segStart + pillW / 2, Math.min(segEnd - pillW / 2, rawX))
 
   return (
     <div style={{ position:'relative', height, overflow:'visible' }}>
@@ -127,7 +130,7 @@ export default function BandTrack({ band, layers, domain, activeKm }) {
             transform:'translate(-50%, -50%)',
             background:'rgba(0,0,0,0.7)',
             color:'#fff',
-            borderRadius:12,
+            borderRadius:9999,
             padding:'0 6px',
             fontSize:11,
             whiteSpace:'nowrap',
