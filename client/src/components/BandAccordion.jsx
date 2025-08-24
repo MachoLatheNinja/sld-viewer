@@ -35,7 +35,7 @@ export default function BandAccordion({ groups = [], layers, domain, activeKm, g
             <span style={{ marginLeft:8, fontWeight:'bold' }}>{g.title}</span>
           </div>
           {open.has(g.key) && (
-            <div style={{ padding:'4px 8px 8px 8px' }}>
+            <div style={{ padding:'4px 8px 8px 0' }}>
               {g.bands.map(b => {
                 const h = Math.max(18, Math.min(20, b.height || 20))
                 return (
