@@ -431,7 +431,7 @@ export default function App() {
                   zIndex:40,
                 }}
               >
-                {formatLRP(activeKm, layers?.kmPosts)} ({formatChainage(activeKm * 1000)} m)
+                {formatLRP(activeKm, layers?.kmPosts)} ({formatChainage((activeKm + (currentSection?.startKm || 0)) * 1000)} m)
               </div>
             )}
           </div>
