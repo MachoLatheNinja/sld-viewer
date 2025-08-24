@@ -29,16 +29,16 @@ export default function ControlBar({ road, domain, onDomainChange, showGuide, on
     <div style={{ display:'flex', alignItems:'center', gap:8, margin:'8px 0' }}>
       <div><b>LRM</b>: {fromLabel} - {toLabel}</div>
       <div style={{ marginLeft:'auto', display:'flex', gap:6 }}>
-        <button onClick={onToggleGuide} title="Toggle guide" style={{ fontSize:16, background: showGuide ? '#ffd54f' : undefined }}>
+        <button type="button" onClick={onToggleGuide} title="Toggle guide" style={{ fontSize:16, background: showGuide ? '#ffd54f' : undefined }}>
           📏
         </button>
-        <button onClick={onToggleEditSeams} title="Toggle seam edit" style={{ fontSize:16, background: editSeams ? '#ffd54f' : undefined }}>
+        <button type="button" onClick={onToggleEditSeams} title="Toggle seam edit" style={{ fontSize:16, background: editSeams ? '#ffd54f' : undefined }}>
           ✂️
         </button>
-        <button onClick={()=>jump(-1)}>◀ Pan 1km</button>
-        <button onClick={()=>jump(+1)}>Pan 1km ▶</button>
-        <button onClick={()=>zoom(0.8)}>Zoom In</button>
-        <button onClick={()=>zoom(1.25)}>Zoom Out</button>
+        <button type="button" onClick={()=>jump(-1)}>◀ Pan 1km</button>
+        <button type="button" onClick={()=>jump(+1)}>Pan 1km ▶</button>
+        <button type="button" onClick={()=>zoom(0.8)}>Zoom In</button>
+        <button type="button" onClick={()=>zoom(1.25)}>Zoom Out</button>
       </div>
     </div>
   )

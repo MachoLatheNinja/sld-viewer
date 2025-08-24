@@ -275,7 +275,7 @@ export default function App() {
               onKeyDown={(e)=>{ if(e.key==='Enter') onSearch() }}
               style={{ width: 260 }}
             />
-            <button onClick={onSearch}>Search</button>
+            <button type="button" onClick={onSearch}>Search</button>
             <select
               value={road?.id || ''}
               onChange={(e)=>{ const next = roads.find(r=>r.id===e.target.value); setRoad(next||null) }}
