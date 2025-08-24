@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { DEFAULT_BANDS } from '../bands'
-import { parseLrpKm } from '../lrp'
+import { parseLrpKm, formatLRP } from '../lrp'
 
 const SURFACE_COLORS = { Asphalt:'#282828', Concrete:'#a1a1a1', Gravel:'#8d6e63' }
 const QUALITY_COLORS = { Poor:'#e53935', Fair:'#fb8c00', Good:'#43a047', Excellent:'#1e88e5' }
@@ -42,50 +42,6 @@ function laneColor(lanes) {
   return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`
 }
 
-function formatLrpKm(kmVal) {
-  const k = Math.floor(kmVal)
-  const mPart = Math.round((kmVal - k) * 1000)
-  return `K${String(k).padStart(4,'0')} + ${String(mPart).padStart(3,'0')}`
-}
-
-function formatLRP(km, posts = []) {
-  if (!posts.length) return formatLrpKm(km)
-  const sorted = posts.slice().sort((a, b) => a.chainageKm - b.chainageKm)
-  let prev = sorted[0]
-  let next = sorted[sorted.length - 1]
-  for (const p of sorted) {
-    if (p.chainageKm <= km) prev = p
-    if (p.chainageKm >= km) { next = p; break }
-  }
-  const prevLrpKm = parseLrpKm(prev?.lrp)
-  const nextLrpKm = parseLrpKm(next?.lrp)
-
-  if (
-    prev.chainageKm <= km &&
-    km < next.chainageKm &&
-    prevLrpKm != null &&
-    nextLrpKm != null
-  ) {
-    const gapM = (next.chainageKm - prev.chainageKm) * 1000
-    // Only suppress rolling over when the gap between posts exceeds 1 km.
-    if (gapM > 1000 + EPS) {
-      const baseKm = Math.floor(prevLrpKm)
-      const baseOffsetM = (prevLrpKm - baseKm) * 1000
-      const offsetM = Math.round(baseOffsetM + (km - prev.chainageKm) * 1000)
-      return `K${String(baseKm).padStart(4,'0')} + ${String(offsetM).padStart(3,'0')}`
-    }
-  }
-
-  if (prev.chainageKm <= km && prevLrpKm != null) {
-    const lrpKm = prevLrpKm + (km - prev.chainageKm)
-    return formatLrpKm(lrpKm)
-  }
-  if (next.chainageKm >= km && nextLrpKm != null) {
-    const lrpKm = nextLrpKm - (next.chainageKm - km)
-    return formatLrpKm(lrpKm)
-  }
-  return formatLrpKm(km)
-}
 
 export default function SLDCanvasV2({
   road,

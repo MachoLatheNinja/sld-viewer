@@ -11,6 +11,51 @@ export function parseLrpKm(lrp) {
   return parts.km + parts.meters / 1000;
 }
 
+export function formatLrpKm(kmVal) {
+  const k = Math.floor(kmVal);
+  const mPart = Math.round((kmVal - k) * 1000);
+  return `K${String(k).padStart(3, '0')} + ${String(mPart).padStart(4, '0')}`;
+}
+
+export function formatLRP(km, posts = []) {
+  if (!posts.length) return formatLrpKm(km);
+  const sorted = posts.slice().sort((a, b) => a.chainageKm - b.chainageKm);
+  let prev = sorted[0];
+  let next = sorted[sorted.length - 1];
+  for (const p of sorted) {
+    if (p.chainageKm <= km) prev = p;
+    if (p.chainageKm >= km) { next = p; break; }
+  }
+  const prevLrpKm = parseLrpKm(prev?.lrp);
+  const nextLrpKm = parseLrpKm(next?.lrp);
+  const EPS = 1e-6;
+
+  if (
+    prev.chainageKm <= km &&
+    km < next.chainageKm &&
+    prevLrpKm != null &&
+    nextLrpKm != null
+  ) {
+    const gapM = (next.chainageKm - prev.chainageKm) * 1000;
+    if (gapM > 1000 + EPS) {
+      const baseKm = Math.floor(prevLrpKm);
+      const baseOffsetM = (prevLrpKm - baseKm) * 1000;
+      const offsetM = Math.round(baseOffsetM + (km - prev.chainageKm) * 1000);
+      return `K${String(baseKm).padStart(3, '0')} + ${String(offsetM).padStart(4, '0')}`;
+    }
+  }
+
+  if (prev.chainageKm <= km && prevLrpKm != null) {
+    const lrpKm = prevLrpKm + (km - prev.chainageKm);
+    return formatLrpKm(lrpKm);
+  }
+  if (next.chainageKm >= km && nextLrpKm != null) {
+    const lrpKm = nextLrpKm - (next.chainageKm - km);
+    return formatLrpKm(lrpKm);
+  }
+  return formatLrpKm(km);
+}
+
 export function lrpToChainageKm(lrp, posts = []) {
   const parts = parseLrpParts(lrp);
   if (!parts) return null;

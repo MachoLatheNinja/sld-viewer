@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react'
+import { formatLRP } from '../lrp'
 
-export default function ControlBar({ road, domain, onDomainChange, showGuide, onToggleGuide }) {
+export default function ControlBar({ road, domain, onDomainChange, showGuide, onToggleGuide, kmPosts = [] }) {
   const lengthKm = Number(road?.lengthKm || 0)
   const from = domain?.fromKm ?? 0
   const to   = domain?.toKm ?? Math.max(10, lengthKm)
@@ -21,12 +22,12 @@ export default function ControlBar({ road, domain, onDomainChange, showGuide, on
     if (newTo > newFrom) onDomainChange(newFrom, newTo)
   }
 
-  const fromM = Math.round(from * 1000)
-  const toM = Math.round(to * 1000)
+  const fromLabel = formatLRP(from, kmPosts)
+  const toLabel   = formatLRP(to, kmPosts)
 
   return (
     <div style={{ display:'flex', alignItems:'center', gap:8, margin:'8px 0' }}>
-      <div><b>LRM</b>: {fromM}–{toM} m</div>
+      <div><b>LRM</b>: {fromLabel} - {toLabel}</div>
       <div style={{ marginLeft:'auto', display:'flex', gap:6 }}>
         <button onClick={onToggleGuide} title="Toggle guide" style={{ fontSize:16, background: showGuide ? '#ffd54f' : undefined }}>
           📏

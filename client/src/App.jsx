@@ -206,6 +206,7 @@ export default function App() {
           onDomainChange={(a,b)=>{ setFromKm(a); setToKm(b) }}
           showGuide={showGuide}
           onToggleGuide={toggleGuide}
+          kmPosts={layers?.kmPosts}
         />
 
         <SLDCanvasV2
