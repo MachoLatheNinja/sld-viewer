@@ -169,10 +169,11 @@ export default function App() {
   const onSearch = () => {
     const kmVal = lrpToChainageKm(q, allLayers?.kmPosts)
     if (kmVal != null) {
-      const sec = sectionList.find(s => kmVal >= s.startKm && kmVal <= s.endKm)
+      const sec = sectionList.find(s => s.id === sectionId)
       if (sec) {
-        setGuideKm(kmVal - sec.startKm)
-        setSectionId(sec.id)
+        let guide = kmVal - sec.startKm
+        guide = Math.max(0, Math.min(guide, sec.endKm - sec.startKm))
+        setGuideKm(guide)
         setShowGuide(true)
       }
       return
