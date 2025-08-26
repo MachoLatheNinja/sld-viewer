@@ -4,7 +4,7 @@ import ControlBar from './components/ControlBar'
 import SLDCanvasV2 from './components/SLDCanvasV2'
 import { DEFAULT_BAND_GROUPS, bandArrayByKey } from './bands'
 import BandAccordion, { LABEL_W } from './components/BandAccordion'
-import { lrpToChainageKm, formatLRP } from './lrp'
+import { lrpToChainageKm, formatLRP, parseLrpRange } from './lrp'
 
 const EPS = 1e-6
 const SNAP_PX = 6 // px tolerance for snapping guide to seams
@@ -54,6 +54,9 @@ export default function App() {
 
   const [showGuide, setShowGuide] = useState(false)
   const [editSeams, setEditSeams] = useState(false)
+
+  const [rangeText, setRangeText] = useState('')
+  const [highlightRange, setHighlightRange] = useState(null)
 
   const [bandGroups, setBandGroups] = useState(DEFAULT_BAND_GROUPS)
   const domain = useMemo(() => ({ fromKm, toKm }), [fromKm, toKm])
@@ -166,6 +169,17 @@ export default function App() {
     setBandGroups(next)
   }, [allLayers])
 
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === 'Escape') {
+        setHighlightRange(null)
+        setRangeText('')
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
   const onSearch = () => {
     const kmVal = lrpToChainageKm(q, allLayers?.kmPosts)
     if (kmVal != null) {
@@ -201,6 +215,29 @@ export default function App() {
     }
   }
 
+  const applyRange = () => {
+    const parsed = parseLrpRange(rangeText)
+    if (!parsed) {
+      alert("Use 'K#### + ### - K#### + ###'. Example: K0180 + 529 - K0180 + 546.")
+      return
+    }
+    const sec = currentSection
+    if (!sec) return
+    let { startKm, endKm } = parsed
+    if (endKm == null) {
+      startKm -= 0.0005
+      endKm = startKm + 0.001
+    }
+    if (endKm < sec.startKm || startKm > sec.endKm) {
+      alert('Range is outside this section.')
+      setHighlightRange(null)
+      return
+    }
+    const clippedStart = Math.max(startKm, sec.startKm) - sec.startKm
+    const clippedEnd = Math.min(endKm, sec.endKm) - sec.startKm
+    setHighlightRange({ startKm: clippedStart, endKm: clippedEnd })
+  }
+
   // ✅ Forward the optional extras (like { edge: 'start' } for bridges)
   const handleMoveSeam = async (bandKey, leftId, rightId, km, extra = {}) => {
     if (!road) return
@@ -214,6 +251,26 @@ export default function App() {
     ? (scale ? scale.strokeXFromM(guideKm * 1000) : null)
     : hoverLeft
   const guideLeft = guideTrackLeft != null ? LABEL_W + guideTrackLeft : null
+
+  const rangePx = useMemo(() => {
+    if (!highlightRange || !scale) return null
+    const visStart = Math.max(highlightRange.startKm, fromKm)
+    const visEnd = Math.min(highlightRange.endKm, toKm)
+    if (visEnd <= fromKm || visStart >= toKm) return null
+    let left = scale.cssLeftFromM(visStart * 1000)
+    let right = scale.cssLeftFromM(visEnd * 1000)
+    if (right - left < 3) {
+      const mid = (left + right) / 2
+      left = mid - 1.5
+      right = mid + 1.5
+    }
+    return {
+      left: LABEL_W + left,
+      right: LABEL_W + right,
+      lineLeft: LABEL_W + Math.round(left) + 0.5,
+      lineRight: LABEL_W + Math.round(right) + 0.5,
+    }
+  }, [highlightRange, scale, fromKm, toKm])
 
   const handlePanelMouseMove = (e) => {
     if (!scale) return
@@ -339,6 +396,14 @@ export default function App() {
               style={{ width: 260 }}
             />
             <button type="button" onClick={onSearch}>Search</button>
+            <input
+              value={rangeText}
+              onChange={(e)=>setRangeText(e.target.value)}
+              placeholder="K0180 + 529 - K0180 + 546"
+              onKeyDown={(e)=>{ if(e.key==='Enter') applyRange() }}
+              style={{ width: 260 }}
+            />
+            <button type="button" onClick={applyRange}>Highlight</button>
             <select
               value={road?.id || ''}
               onChange={(e)=>{ const next = roads.find(r=>r.id===e.target.value); setRoad(next||null) }}
@@ -412,6 +477,22 @@ export default function App() {
               contentRef={contentRef}
               scale={scale}
             />
+            {rangePx && (
+              <>
+                <div
+                  style={{ position:'absolute', top:0, bottom:0, left:0, width:rangePx.left, background:'rgba(255,255,255,0.75)', backdropFilter:'grayscale(90%)', pointerEvents:'none', zIndex:5 }}
+                />
+                <div
+                  style={{ position:'absolute', top:0, bottom:0, left:rangePx.right, right:0, background:'rgba(255,255,255,0.75)', backdropFilter:'grayscale(90%)', pointerEvents:'none', zIndex:5 }}
+                />
+                <div
+                  style={{ position:'absolute', top:0, bottom:0, left:rangePx.lineLeft, width:1, background:'#2196f3', pointerEvents:'none', zIndex:8 }}
+                />
+                <div
+                  style={{ position:'absolute', top:0, bottom:0, left:rangePx.lineRight, width:1, background:'#2196f3', pointerEvents:'none', zIndex:8 }}
+                />
+              </>
+            )}
             {activeKm != null && guideLeft != null && (
               <div
                 style={{ position:'absolute', top:0, bottom:0, left:guideLeft, width:1, background:'#FFC107', pointerEvents:'none', zIndex:10 }}
