@@ -87,7 +87,7 @@ export function lrpToChainageKm(lrp, posts = []) {
   return km + offsetKm;
 }
 
-export function parseLrpRange(input) {
+export function parseLrpRange(input, posts = []) {
   if (!input) return null;
   const normalized = input
     .replace(/[\u2013\u2014]/g, '-')
@@ -96,8 +96,10 @@ export function parseLrpRange(input) {
     .map(s => s.trim())
     .filter(Boolean);
   if (!normalized.length) return null;
-  const start = parseLrpKm(normalized[0]);
+  const start = lrpToChainageKm(normalized[0], posts);
   if (start == null) return null;
-  const end = normalized[1] ? parseLrpKm(normalized[1]) : null;
-  return end == null ? { startKm: start, endKm: null } : { startKm: Math.min(start, end), endKm: Math.max(start, end) };
+  const end = normalized[1] ? lrpToChainageKm(normalized[1], posts) : null;
+  return end == null
+    ? { startKm: start, endKm: null }
+    : { startKm: Math.min(start, end), endKm: Math.max(start, end) };
 }

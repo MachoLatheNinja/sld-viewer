@@ -216,7 +216,7 @@ export default function App() {
   }
 
   const applyRange = () => {
-    const parsed = parseLrpRange(rangeText)
+    const parsed = parseLrpRange(rangeText, allLayers?.kmPosts)
     if (!parsed) {
       alert("Use 'K#### + ### - K#### + ###'. Example: K0180 + 529 - K0180 + 546.")
       return
