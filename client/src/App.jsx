@@ -55,7 +55,6 @@ export default function App() {
   const [showGuide, setShowGuide] = useState(false)
   const [editSeams, setEditSeams] = useState(false)
 
-  const [rangeText, setRangeText] = useState('')
   const [highlightRange, setHighlightRange] = useState(null)
 
   const [bandGroups, setBandGroups] = useState(DEFAULT_BAND_GROUPS)
@@ -173,7 +172,8 @@ export default function App() {
     const handler = (e) => {
       if (e.key === 'Escape') {
         setHighlightRange(null)
-        setRangeText('')
+        setGuideKm(null)
+        setQ('')
       }
     }
     window.addEventListener('keydown', handler)
@@ -181,6 +181,32 @@ export default function App() {
   }, [])
 
   const onSearch = () => {
+    const parsedRange = parseLrpRange(q, allLayers?.kmPosts)
+    const lower = q.toLowerCase()
+    const looksLikeRange = /[k+]/i.test(q) && (/[-\u2013\u2014]|\bto\b/).test(lower)
+    if (parsedRange) {
+      const sec = currentSection
+      if (!sec) return
+      let { startKm, endKm } = parsedRange
+      if (endKm == null) {
+        startKm -= 0.0005
+        endKm = startKm + 0.001
+      }
+      if (endKm < sec.startKm || startKm > sec.endKm) {
+        alert('Range is outside this section.')
+        setHighlightRange(null)
+        return
+      }
+      const clippedStart = Math.max(startKm, sec.startKm) - sec.startKm
+      const clippedEnd = Math.min(endKm, sec.endKm) - sec.startKm
+      setHighlightRange({ startKm: clippedStart, endKm: clippedEnd })
+      setGuideKm(null)
+      return
+    } else if (looksLikeRange) {
+      alert("Use 'K#### + ### - K#### + ###'. Example: K0180 + 529 - K0180 + 546.")
+      return
+    }
+
     const kmVal = lrpToChainageKm(q, allLayers?.kmPosts)
     if (kmVal != null) {
       const sec = sectionList.find(s => s.id === sectionId)
@@ -189,6 +215,7 @@ export default function App() {
         guide = Math.max(0, Math.min(guide, sec.endKm - sec.startKm))
         setGuideKm(guide)
         setShowGuide(true)
+        setHighlightRange(null)
       }
       return
     }
@@ -202,6 +229,7 @@ export default function App() {
         setGuideKm(bridge.startKm - sec.startKm)
         setSectionId(sec.id)
         setShowGuide(true)
+        setHighlightRange(null)
       }
     }
   }
@@ -213,29 +241,6 @@ export default function App() {
     } else {
       setShowGuide(g => !g)
     }
-  }
-
-  const applyRange = () => {
-    const parsed = parseLrpRange(rangeText, allLayers?.kmPosts)
-    if (!parsed) {
-      alert("Use 'K#### + ### - K#### + ###'. Example: K0180 + 529 - K0180 + 546.")
-      return
-    }
-    const sec = currentSection
-    if (!sec) return
-    let { startKm, endKm } = parsed
-    if (endKm == null) {
-      startKm -= 0.0005
-      endKm = startKm + 0.001
-    }
-    if (endKm < sec.startKm || startKm > sec.endKm) {
-      alert('Range is outside this section.')
-      setHighlightRange(null)
-      return
-    }
-    const clippedStart = Math.max(startKm, sec.startKm) - sec.startKm
-    const clippedEnd = Math.min(endKm, sec.endKm) - sec.startKm
-    setHighlightRange({ startKm: clippedStart, endKm: clippedEnd })
   }
 
   // ✅ Forward the optional extras (like { edge: 'start' } for bridges)
@@ -403,19 +408,11 @@ export default function App() {
             <input
               value={q}
               onChange={(e)=>setQ(e.target.value)}
-              placeholder="Search chainage or bridge…"
+              placeholder="Search chainage, bridge, or range…"
               onKeyDown={(e)=>{ if(e.key==='Enter') onSearch() }}
-              style={{ width: 260 }}
+              style={{ width: 520 }}
             />
             <button type="button" onClick={onSearch}>Search</button>
-            <input
-              value={rangeText}
-              onChange={(e)=>setRangeText(e.target.value)}
-              placeholder="K0180 + 529 - K0180 + 546"
-              onKeyDown={(e)=>{ if(e.key==='Enter') applyRange() }}
-              style={{ width: 260 }}
-            />
-            <button type="button" onClick={applyRange}>Highlight</button>
             <select
               value={road?.id || ''}
               onChange={(e)=>{ const next = roads.find(r=>r.id===e.target.value); setRoad(next||null) }}
