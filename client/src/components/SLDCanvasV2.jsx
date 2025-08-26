@@ -764,16 +764,36 @@ export default function SLDCanvasV2({
   }
 
   return (
-    <canvas
-      ref={canvasRef}
-      style={{ width:'calc(100% - 2px)', height: layout.totalH, display:'block', cursor:'grab', transform:'translateX(2px)' }}
-      width={1198}
-      height={layout.totalH}
-      onWheel={onWheel}
-      onMouseDown={onMouseDown}
-      onMouseMove={onMouseMove}
-      onMouseUp={onMouseUp}
-      onMouseLeave={onMouseLeave}
-    />
+    <div
+      style={{
+        width: 'calc(100% - 2px)',
+        height: layout.totalH,
+        position: 'relative',
+        transform: 'translateX(2px)',
+      }}
+    >
+      <canvas
+        ref={canvasRef}
+        style={{ width: '100%', height: '100%', display: 'block', cursor: 'grab' }}
+        width={1198}
+        height={layout.totalH}
+        onWheel={onWheel}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={onMouseUp}
+        onMouseLeave={onMouseLeave}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          bottom: 0,
+          left: '50%',
+          width: 1,
+          background: '#d32f2f',
+          pointerEvents: 'none',
+        }}
+      />
+    </div>
   )
 }
