@@ -7,6 +7,15 @@ require('dotenv').config({ path: './.env' })
 const { PrismaClient, Prisma } = require('@prisma/client')
 const prisma = new PrismaClient()
 
+;(async () => {
+  try {
+    const info = await prisma.$queryRaw`SELECT current_database() AS db, current_schema() AS sch`
+    console.log('[DB]', info[0])
+  } catch (e) {
+    console.error('DB info error:', e)
+  }
+})()
+
 const app = express()
 app.use(cors())
 app.use(bodyParser.json())
@@ -45,7 +54,7 @@ function eqRow(a = {}, b = {}, meta = {}){
 }
 
 // ---------- health ----------
-app.get('/health', (_req, res) => res.json({ ok: true }))
+app.get('/api/health', (_req, res) => res.json({ ok: true }))
 
 // ---------- roads ----------
 app.get('/api/roads', async (req, res) => {
@@ -133,21 +142,58 @@ app.get('/api/roads/:id/track', async (req, res) => {
 })
 
 // ---- map endpoints ----
+const sqlRoute = Prisma.sql`
+WITH r AS (
+  SELECT ST_LineMerge(ST_UnaryUnion(geom)) AS geom
+  FROM public."LRS"
+  WHERE lower(trim(section_id)) = lower(trim($1))
+)
+SELECT
+  ST_AsGeoJSON(geom) AS geojson,
+  ST_Length(geography(geom)) AS len,
+  (SELECT COUNT(*) FROM public."LRS" WHERE lower(trim(section_id)) = lower(trim($1))) AS cnt
+FROM r
+WHERE geom IS NOT NULL;
+`
+
+const sqlPoint = Prisma.sql`
+WITH r AS (
+  SELECT ST_LineMerge(ST_UnaryUnion(geom)) AS geom
+  FROM public."LRS"
+  WHERE lower(trim(section_id)) = lower(trim($1))
+), d AS (
+  SELECT geom, NULLIF(ST_Length(geography(geom)),0) AS len_m
+  FROM r WHERE geom IS NOT NULL
+)
+SELECT ST_AsGeoJSON(
+  ST_LineInterpolatePoint(
+    geom,
+    GREATEST(0, LEAST(1, $2/len_m))
+  )
+) AS geojson
+FROM d;
+`
+
 app.get('/api/map/:sectionId/route', async (req, res) => {
-  const sectionId = req.params.sectionId
+  const { sectionId } = req.params
+  console.log('[route] sectionId =', JSON.stringify(sectionId))
   try {
-    const rows = await prisma.$queryRaw`
-      WITH r AS (
-        SELECT ST_LineMerge(ST_UnaryUnion(geom)) AS geom
+    const r = await prisma.$queryRaw(sqlRoute, sectionId)
+    const row = r[0]
+    if (!r.length || !row.geojson) {
+      const near = await prisma.$queryRaw`
+        SELECT section_id, length(section_id) AS len
         FROM public."LRS"
-        WHERE trim(section_id) = ${sectionId}
-      )
-      SELECT ST_AsGeoJSON(geom) AS geojson,
-             ST_Length(geography(geom)) AS len
-      FROM r WHERE geom IS NOT NULL
-    `
-    const row = rows[0]
-    if (!row || !row.geojson) return res.status(404).json({ error: 'route not found', sectionId })
+        WHERE section_id ILIKE '%' || ${sectionId} || '%'
+        GROUP BY section_id ORDER BY section_id LIMIT 5
+      `
+      return res.status(404).json({
+        error: 'route not found',
+        sectionId,
+        matchesTried: row?.cnt ?? 0,
+        nearMatches: near,
+      })
+    }
     res.json({ type: 'Feature', geometry: JSON.parse(row.geojson), properties: { len: Number(row.len) || 0 } })
   } catch (e) {
     console.error('route error:', e)
@@ -156,29 +202,16 @@ app.get('/api/map/:sectionId/route', async (req, res) => {
 })
 
 app.get('/api/map/:sectionId/point', async (req, res) => {
-  const sectionId = req.params.sectionId
-  const m = Number(req.query.m)
+  const { sectionId } = req.params
+  const m = Number(req.query.m ?? '0')
+  console.log('[point] sectionId =', JSON.stringify(sectionId), 'm =', m)
   if (!Number.isFinite(m)) return res.status(400).json({ error: 'm is required' })
   try {
-    const rows = await prisma.$queryRaw`
-      WITH r AS (
-        SELECT ST_LineMerge(ST_UnaryUnion(geom)) AS geom
-        FROM public."LRS"
-        WHERE trim(section_id) = ${sectionId}
-      ), d AS (
-        SELECT geom, NULLIF(ST_Length(geography(geom)),0) AS len_m
-        FROM r WHERE geom IS NOT NULL
-      )
-      SELECT ST_AsGeoJSON(
-        ST_LineInterpolatePoint(
-          geom,
-          GREATEST(0, LEAST(1, ${m} / len_m))
-        )
-      ) AS geojson
-      FROM d
-    `
-    const row = rows[0]
-    if (!row || !row.geojson) return res.status(404).json({ error: 'point not found', sectionId, m })
+    const r = await prisma.$queryRaw(sqlPoint, sectionId, m)
+    const row = r[0]
+    if (!r.length || !row.geojson) {
+      return res.status(404).json({ error: 'point not found', sectionId, m })
+    }
     res.json({ type: 'Feature', geometry: JSON.parse(row.geojson), properties: {} })
   } catch (e) {
     console.error('point error:', e)
@@ -200,7 +233,7 @@ app.get('/api/map/:sectionId/highlight', async (req, res) => {
       WITH r AS (
         SELECT ST_LineMerge(ST_UnaryUnion(geom)) AS geom
         FROM public."LRS"
-        WHERE trim(section_id) = ${sectionId}
+        WHERE lower(trim(section_id)) = lower(trim(${sectionId}))
       ), d AS (
         SELECT geom, NULLIF(ST_Length(geography(geom)),0) AS len_m
         FROM r WHERE geom IS NOT NULL
