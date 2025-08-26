@@ -30,9 +30,19 @@ export async function fetchLayers(roadId) {
   }
 }
 
-export async function fetchTrack(roadId) {
-  const { data } = await axios.get(`${API}/api/roads/${roadId}/track`)
-  return Array.isArray(data) ? data : []
+export async function fetchRoute(sectionId) {
+  const { data } = await axios.get(`${API}/api/map/${sectionId}/route`)
+  return data
+}
+
+export async function fetchPoint(sectionId, m) {
+  const { data } = await axios.get(`${API}/api/map/${sectionId}/point`, { params: { m } })
+  return data
+}
+
+export async function fetchHighlight(sectionId, fromM, toM) {
+  const { data } = await axios.get(`${API}/api/map/${sectionId}/highlight`, { params: { from: fromM, to: toM } })
+  return data
 }
 
 // ✅ Forward arbitrary extras (e.g., { edge: 'start' } for bridges)

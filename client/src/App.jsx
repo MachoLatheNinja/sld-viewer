@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { fetchRoads, fetchLayers, moveBandSeam, fetchTrack } from './api'
+import { fetchRoads, fetchLayers, moveBandSeam } from './api'
 import ControlBar from './components/ControlBar'
 import SLDCanvasV2 from './components/SLDCanvasV2'
 import { DEFAULT_BAND_GROUPS, bandArrayByKey } from './bands'
@@ -57,7 +57,6 @@ export default function App() {
   const [editSeams, setEditSeams] = useState(false)
 
   const [highlightRange, setHighlightRange] = useState(null)
-  const [track, setTrack] = useState([])
 
   const [bandGroups, setBandGroups] = useState(DEFAULT_BAND_GROUPS)
   const domain = useMemo(() => ({ fromKm, toKm }), [fromKm, toKm])
@@ -84,12 +83,6 @@ export default function App() {
       setSectionList(list)
       const first = list[0]
       setSectionId(first?.id || null)
-      try {
-        const t = await fetchTrack(road.id)
-        setTrack(t)
-      } catch {
-        setTrack([])
-      }
     })()
   }, [road])
 
@@ -407,10 +400,26 @@ export default function App() {
     return () => el.removeEventListener('wheel', handlePanelWheel)
   }, [handlePanelWheel])
 
+  useEffect(() => {
+    if (!currentSection) return
+    const detail = {
+      startM: (currentSection.startKm + fromKm) * 1000,
+      endM: (currentSection.startKm + toKm) * 1000,
+      centerM: (currentSection.startKm + (fromKm + toKm) / 2) * 1000,
+    }
+    if (highlightRange) {
+      detail.activeRange = {
+        fromM: (currentSection.startKm + highlightRange.startKm) * 1000,
+        toM: (currentSection.startKm + highlightRange.endKm) * 1000,
+      }
+    }
+    window.dispatchEvent(new CustomEvent('sld:viewport', { detail }))
+  }, [currentSection, fromKm, toKm, highlightRange])
+
   return (
     <div style={{ fontFamily:'Inter, system-ui, Arial', background:'#f0f2f5', minHeight:'100vh', display:'flex' }}>
       <div style={{ width:260, padding:'16px 8px' }}>
-        <MapView track={track} centerKm={(fromKm + toKm) / 2} highlightRange={highlightRange} />
+        <MapView sectionId={sectionId} />
       </div>
       <div style={{ flex:1, maxWidth: 1400, margin:'0 auto', padding:'16px' }}>
         <div style={{ display:'flex', gap:12, alignItems:'center', marginBottom:8 }}>

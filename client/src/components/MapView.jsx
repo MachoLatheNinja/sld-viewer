@@ -1,48 +1,118 @@
-import React, { useMemo } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
+import { fetchRoute, fetchPoint, fetchHighlight } from '../api'
 
-function interp(track = [], km) {
-  if (!track.length) return null
-  let prev = track[0]
-  for (let i = 1; i < track.length; i++) {
-    const cur = track[i]
-    if (km <= cur.km) {
-      const span = cur.km - prev.km
-      const t = span > 0 ? (km - prev.km) / span : 0
-      const lat = prev.lat + t * (cur.lat - prev.lat)
-      const lng = prev.lng + t * (cur.lng - prev.lng)
-      return { lat, lng }
+export default function MapView({ sectionId }) {
+  const containerRef = useRef(null)
+  const mapRef = useRef(null)
+  const markerRef = useRef(null)
+  const [libReady, setLibReady] = useState(() => typeof window !== 'undefined' && !!window.maplibregl)
+
+  // load MapLibre via CDN once
+  useEffect(() => {
+    if (libReady) return
+    const link = document.createElement('link')
+    link.rel = 'stylesheet'
+    link.href = 'https://unpkg.com/maplibre-gl@3.5.2/dist/maplibre-gl.css'
+    document.head.appendChild(link)
+    const script = document.createElement('script')
+    script.src = 'https://unpkg.com/maplibre-gl@3.5.2/dist/maplibre-gl.js'
+    script.onload = () => setLibReady(true)
+    document.body.appendChild(script)
+  }, [libReady])
+
+  // init map when library and section ready
+  useEffect(() => {
+    if (!sectionId || !libReady || !containerRef.current) return
+
+    const map = new window.maplibregl.Map({
+      container: containerRef.current,
+      style: 'https://demotiles.maplibre.org/style.json',
+      center: [0, 0],
+      zoom: 12,
+    })
+    mapRef.current = map
+
+    let cancelled = false
+
+    map.on('load', async () => {
+      try {
+        const route = await fetchRoute(sectionId)
+        if (cancelled) return
+        if (route && route.geometry) {
+          map.addSource('route', { type: 'geojson', data: route })
+          map.addLayer({ id: 'route', type: 'line', source: 'route', paint: { 'line-color': '#666', 'line-width': 3 } })
+
+          const coords = route.geometry.type === 'LineString'
+            ? route.geometry.coordinates
+            : route.geometry.coordinates.flat()
+          if (coords.length) {
+            const bounds = coords.reduce(
+              (b, c) => b.extend(c),
+              new window.maplibregl.LngLatBounds(coords[0], coords[0])
+            )
+            map.fitBounds(bounds, { padding: 20, duration: 0 })
+          }
+        }
+
+        map.addSource('highlight', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+        map.addLayer({ id: 'highlight', type: 'line', source: 'highlight', paint: { 'line-color': '#e53935', 'line-width': 4 } })
+        markerRef.current = new window.maplibregl.Marker({ color: '#1976d2' })
+          .setLngLat(map.getCenter())
+          .addTo(map)
+      } catch (e) {
+        console.error('map load', e)
+      }
+    })
+
+    return () => {
+      cancelled = true
+      map.remove()
+      mapRef.current = null
+      markerRef.current = null
     }
-    prev = cur
-  }
-  return { lat: prev.lat, lng: prev.lng }
-}
+  }, [sectionId, libReady])
 
-export default function MapView({ track = [], centerKm, highlightRange }) {
-  const center = useMemo(() => interp(track, centerKm), [track, centerKm])
-  const span = useMemo(() => {
-    if (!highlightRange) return null
-    const start = interp(track, highlightRange.startKm)
-    const end = interp(track, highlightRange.endKm)
-    return (start && end) ? { start, end } : null
-  }, [track, highlightRange])
+  // listen for viewport events
+  useEffect(() => {
+    if (!sectionId || !libReady) return
+    let detail = null
+    let timer = null
 
-  const src = useMemo(() => {
-    if (!center) return null
-    const zoom = 14
-    let url = `https://staticmap.openstreetmap.de/staticmap.php?center=${center.lat},${center.lng}&zoom=${zoom}&size=260x200&markers=${center.lat},${center.lng},lightblue1`
-    if (span) {
-      url += `&path=${span.start.lng},${span.start.lat}|${span.end.lng},${span.end.lat},red`
+    const process = async () => {
+      timer = null
+      if (!mapRef.current || !detail) return
+      const map = mapRef.current
+      const { centerM, activeRange } = detail
+      try {
+        map.stop()
+        const pt = await fetchPoint(sectionId, centerM)
+        if (pt?.geometry) {
+          const [lng, lat] = pt.geometry.coordinates
+          markerRef.current?.setLngLat([lng, lat])
+          map.easeTo({ center: [lng, lat], duration: 300, easing: (t) => t })
+        }
+        if (activeRange) {
+          const seg = await fetchHighlight(sectionId, activeRange.fromM, activeRange.toM)
+          map.getSource('highlight')?.setData(seg || { type: 'FeatureCollection', features: [] })
+        } else {
+          map.getSource('highlight')?.setData({ type: 'FeatureCollection', features: [] })
+        }
+      } catch (e) {
+        console.error('map update', e)
+      }
     }
-    return url
-  }, [center, span])
 
-  return (
-    <div style={{ width: '100%', height: '100%', background: '#e0e0e0' }}>
-      {src ? (
-        <img src={src} alt="map" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-      ) : (
-        <div style={{ fontSize: 12, padding: 8 }}>No map data</div>
-      )}
-    </div>
-  )
+    const handle = (e) => {
+      detail = e.detail
+      if (!timer) timer = setTimeout(process, 33)
+    }
+
+    window.addEventListener('sld:viewport', handle)
+    return () => {
+      window.removeEventListener('sld:viewport', handle)
+      if (timer) clearTimeout(timer)
+    }
+  }, [sectionId, libReady])
+
+  return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 }
