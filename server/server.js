@@ -89,6 +89,13 @@ app.get('/api/roads/:id/layers', async (req, res) => {
 app.get('/api/roads/:id/track', async (req, res) => {
   const roadId = req.params.id
   try {
+    const sections = await prisma.section.findMany({
+      where: { roadId },
+      select: { id: true }
+    })
+    if (!sections.length) return res.json([])
+
+    const ids = sections.map(s => s.id)
     const rows = await prisma.$queryRaw`
       SELECT
         ST_Length(
@@ -99,7 +106,7 @@ app.get('/api/roads/:id/track', async (req, res) => {
       FROM (
         SELECT ST_LineMerge(ST_Union(geom)) AS line
         FROM public."LRS"
-        WHERE section_id = ${roadId}
+        WHERE section_id IN (${Prisma.join(ids)})
       ) AS m
       CROSS JOIN LATERAL ST_DumpPoints(m.line) AS pt
       ORDER BY km
@@ -113,7 +120,7 @@ app.get('/api/roads/:id/track', async (req, res) => {
 
     res.json(track)
   } catch (err) {
-    console.error(err)
+    console.error('track error:', err)
     res.status(500).json({ error: 'Failed to load track' })
   }
 })
