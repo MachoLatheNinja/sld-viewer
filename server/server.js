@@ -145,7 +145,7 @@ router.get('/roads/:id/track', async (req, res) => {
 // ---- map endpoints ----
 const sqlRoute = Prisma.sql`
 WITH r AS (
-  SELECT ST_LineMerge(ST_UnaryUnion(geom)) AS geom
+  SELECT ST_LineMerge(ST_Union(geom)) AS geom
   FROM public."LRS"
   WHERE lower(trim(section_id)) = lower(trim($1))
 )
@@ -159,7 +159,7 @@ WHERE geom IS NOT NULL;
 
 const sqlPoint = Prisma.sql`
 WITH r AS (
-  SELECT ST_LineMerge(ST_UnaryUnion(geom)) AS geom
+  SELECT ST_LineMerge(ST_Union(geom)) AS geom
   FROM public."LRS"
   WHERE lower(trim(section_id)) = lower(trim($1))
 ), d AS (
@@ -198,7 +198,7 @@ router.get('/map/:sectionId/route', async (req, res) => {
     res.json({ type: 'Feature', geometry: JSON.parse(row.geojson), properties: { len: Number(row.len) || 0 } })
   } catch (e) {
     console.error('route error:', e)
-    res.status(500).json({ error: 'Failed to load route' })
+    res.status(500).json({ error: 'server error', detail: String(e) })
   }
 })
 
@@ -216,7 +216,7 @@ router.get('/map/:sectionId/point', async (req, res) => {
     res.json({ type: 'Feature', geometry: JSON.parse(row.geojson), properties: {} })
   } catch (e) {
     console.error('point error:', e)
-    res.status(500).json({ error: 'Failed to locate point' })
+    res.status(500).json({ error: 'server error', detail: String(e) })
   }
 })
 
@@ -232,7 +232,7 @@ router.get('/map/:sectionId/highlight', async (req, res) => {
   try {
     const rows = await prisma.$queryRaw`
       WITH r AS (
-        SELECT ST_LineMerge(ST_UnaryUnion(geom)) AS geom
+        SELECT ST_LineMerge(ST_Union(geom)) AS geom
         FROM public."LRS"
         WHERE lower(trim(section_id)) = lower(trim(${sectionId}))
       ), d AS (
@@ -253,7 +253,7 @@ router.get('/map/:sectionId/highlight', async (req, res) => {
     res.json({ type: 'Feature', geometry: JSON.parse(row.geojson), properties: {} })
   } catch (e) {
     console.error('highlight error:', e)
-    res.status(500).json({ error: 'Failed to locate segment' })
+    res.status(500).json({ error: 'server error', detail: String(e) })
   }
 })
 
