@@ -90,7 +90,7 @@ export default function MapView({ sectionId }) {
     }
   }, [sectionId, libReady])
 
-  // listen for viewport events
+  // listen for viewport events; debounce so map updates only after interaction ends
   useEffect(() => {
     if (!sectionId || !libReady) return
     let detail = null
@@ -122,7 +122,8 @@ export default function MapView({ sectionId }) {
 
     const handle = (e) => {
       detail = e.detail
-      if (!timer) timer = setTimeout(process, 33)
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(process, 200)
     }
 
     window.addEventListener('sld:viewport', handle)
