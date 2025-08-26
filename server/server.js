@@ -17,7 +17,6 @@ const prisma = new PrismaClient()
 })()
 
 const app = express()
-app.use(cors())
 app.use(bodyParser.json())
 
 // Log all incoming requests to help debug proxy issues
@@ -25,6 +24,8 @@ app.use((req, _res, next) => {
   console.log('[API]', req.method, req.originalUrl)
   next()
 })
+
+const router = express.Router()
 
 const PORT = process.env.PORT || 4000
 const EPS = 1e-3
@@ -54,10 +55,10 @@ function eqRow(a = {}, b = {}, meta = {}){
 }
 
 // ---------- health ----------
-app.get('/api/health', (_req, res) => res.json({ ok: true }))
+router.get('/health', (_req, res) => res.json({ ok: true }))
 
 // ---------- roads ----------
-app.get('/api/roads', async (req, res) => {
+router.get('/roads', async (req, res) => {
   const q = (req.query.q ?? '').toString().trim()
   const roads = await prisma.road.findMany({
     where: q ? { name: { contains: q, mode: 'insensitive' } } : {},
@@ -67,7 +68,7 @@ app.get('/api/roads', async (req, res) => {
 })
 
 // all layers (per-band tables)
-app.get('/api/roads/:id/layers', async (req, res) => {
+router.get('/roads/:id/layers', async (req, res) => {
   const roadId = req.params.id
   const road = await prisma.road.findUnique({ where: { id: roadId } })
   if (!road) return res.status(404).json({ error: 'Road not found' })
@@ -102,7 +103,7 @@ app.get('/api/roads/:id/layers', async (req, res) => {
   res.json({ road, sections, surface, aadt, status, quality, lanes, rowWidth, carriagewayWidth, municipality, bridges, kmPosts, miow: miowBands })
 })
 
-app.get('/api/roads/:id/track', async (req, res) => {
+router.get('/roads/:id/track', async (req, res) => {
   const roadId = req.params.id
   try {
     const sections = await prisma.section.findMany({
@@ -174,7 +175,7 @@ SELECT ST_AsGeoJSON(
 FROM d;
 `
 
-app.get('/api/map/:sectionId/route', async (req, res) => {
+router.get('/map/:sectionId/route', async (req, res) => {
   const { sectionId } = req.params
   console.log('[route] sectionId =', JSON.stringify(sectionId))
   try {
@@ -201,7 +202,7 @@ app.get('/api/map/:sectionId/route', async (req, res) => {
   }
 })
 
-app.get('/api/map/:sectionId/point', async (req, res) => {
+router.get('/map/:sectionId/point', async (req, res) => {
   const { sectionId } = req.params
   const m = Number(req.query.m ?? '0')
   console.log('[point] sectionId =', JSON.stringify(sectionId), 'm =', m)
@@ -219,7 +220,7 @@ app.get('/api/map/:sectionId/point', async (req, res) => {
   }
 })
 
-app.get('/api/map/:sectionId/highlight', async (req, res) => {
+router.get('/map/:sectionId/highlight', async (req, res) => {
   const sectionId = req.params.sectionId
   const from = Number(req.query.from)
   const to = Number(req.query.to)
@@ -268,7 +269,7 @@ app.get('/api/map/:sectionId/highlight', async (req, res) => {
  *   non-bridges: { leftId:number, rightId:number, m:number }
  *   bridges:     { leftId?:number, rightId?:number, m:number, edge:'start'|'end' }
  */
-app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
+router.post('/roads/:id/bands/:band/move-seam', async (req, res) => {
   const roadId = req.params.id
   const band = String(req.params.band)
   const meta = BAND_META[band]
@@ -397,6 +398,9 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
     res.status(400).json({ error: String(e.message || e) })
   }
 })
+
+// mount API routes and enable CORS
+app.use('/api', cors(), router)
 
 // static files AFTER api routes
 app.use(express.static(path.join(__dirname, '..', 'client', 'dist')))
