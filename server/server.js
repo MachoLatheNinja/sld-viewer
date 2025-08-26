@@ -9,7 +9,9 @@ const prisma = new PrismaClient()
 
 ;(async () => {
   try {
-    const info = await prisma.$queryRaw`SELECT current_database() AS db, current_schema() AS sch`
+    // Ensure PostGIS functions in the "public" schema are visible
+    await prisma.$executeRaw`SET search_path TO road_analyzer, public`
+    const info = await prisma.$queryRaw`SELECT current_database() AS db, current_schema() AS sch, current_setting('search_path') AS search_path`
     console.log('[DB]', info[0])
   } catch (e) {
     console.error('DB info error:', e)
@@ -114,17 +116,20 @@ router.get('/roads/:id/track', async (req, res) => {
 
     const ids = sections.map(s => s.id)
     const rows = await prisma.$queryRaw`
+      WITH u AS (
+        SELECT ST_Union(geom) AS geom
+        FROM public."LRS"
+        WHERE section_id IN (${Prisma.join(ids)})
+      ), m AS (
+        SELECT ST_LineMerge(geom) AS line FROM u
+      )
       SELECT
         ST_Length(
           ST_LineSubstring(line, 0, ST_LineLocatePoint(line, pt.geom))::geography
         ) / 1000 AS km,
         ST_Y(pt.geom) AS lat,
         ST_X(pt.geom) AS lng
-      FROM (
-        SELECT ST_LineMerge(ST_Union(geom)) AS line
-        FROM public."LRS"
-        WHERE section_id IN (${Prisma.join(ids)})
-      ) AS m
+      FROM m
       CROSS JOIN LATERAL ST_DumpPoints(m.line) AS pt
       ORDER BY km
     `
@@ -144,10 +149,12 @@ router.get('/roads/:id/track', async (req, res) => {
 
 // ---- map endpoints ----
 const sqlRoute = Prisma.sql`
-WITH r AS (
-  SELECT ST_LineMerge(ST_Union(geom)) AS geom
+WITH u AS (
+  SELECT ST_Union(geom) AS geom
   FROM public."LRS"
   WHERE lower(trim(section_id)) = lower(trim($1))
+), r AS (
+  SELECT ST_LineMerge(geom) AS geom FROM u
 )
 SELECT
   ST_AsGeoJSON(geom) AS geojson,
@@ -158,10 +165,12 @@ WHERE geom IS NOT NULL;
 `
 
 const sqlPoint = Prisma.sql`
-WITH r AS (
-  SELECT ST_LineMerge(ST_Union(geom)) AS geom
+WITH u AS (
+  SELECT ST_Union(geom) AS geom
   FROM public."LRS"
   WHERE lower(trim(section_id)) = lower(trim($1))
+), r AS (
+  SELECT ST_LineMerge(geom) AS geom FROM u
 ), d AS (
   SELECT geom, NULLIF(ST_Length(geography(geom)),0) AS len_m
   FROM r WHERE geom IS NOT NULL
@@ -231,10 +240,12 @@ router.get('/map/:sectionId/highlight', async (req, res) => {
   const b = Math.max(from, to)
   try {
     const rows = await prisma.$queryRaw`
-      WITH r AS (
-        SELECT ST_LineMerge(ST_Union(geom)) AS geom
+      WITH u AS (
+        SELECT ST_Union(geom) AS geom
         FROM public."LRS"
         WHERE lower(trim(section_id)) = lower(trim(${sectionId}))
+      ), r AS (
+        SELECT ST_LineMerge(geom) AS geom FROM u
       ), d AS (
         SELECT geom, NULLIF(ST_Length(geography(geom)),0) AS len_m
         FROM r WHERE geom IS NOT NULL
