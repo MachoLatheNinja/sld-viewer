@@ -128,18 +128,20 @@ app.get('/api/roads/:id/track', async (req, res) => {
 // ---- map endpoints ----
 app.get('/api/map/:sectionId/route', async (req, res) => {
   const sectionId = req.params.sectionId
-  const section = await prisma.section.findUnique({ where: { id: sectionId } })
-  if (!section) return res.status(404).json({ error: 'Section not found' })
-
   try {
     const rows = await prisma.$queryRaw`
-      SELECT ST_AsGeoJSON(geom) AS geojson, len
-      FROM public.lrs_route_by_section
-      WHERE section_id = ${sectionId}
+      WITH merged AS (
+        SELECT ST_LineMerge(ST_Union(geom)) AS geom
+        FROM public."LRS"
+        WHERE trim(section_id) = ${sectionId}
+      )
+      SELECT ST_AsGeoJSON(geom) AS geojson,
+             ST_Length(geography(geom)) AS len
+      FROM merged
     `
-    if (!rows.length) return res.json({ type: 'FeatureCollection', features: [] })
     const row = rows[0]
-    const geom = row.geojson ? JSON.parse(row.geojson) : null
+    if (!row || !row.geojson) return res.status(404).json({ error: 'Section not found' })
+    const geom = JSON.parse(row.geojson)
     res.json({ type: 'Feature', geometry: geom, properties: { len: Number(row.len) || 0 } })
   } catch (e) {
     console.error('route error:', e)
@@ -151,17 +153,27 @@ app.get('/api/map/:sectionId/point', async (req, res) => {
   const sectionId = req.params.sectionId
   const m = Number(req.query.m)
   if (!Number.isFinite(m)) return res.status(400).json({ error: 'm is required' })
-  const section = await prisma.section.findUnique({ where: { id: sectionId } })
-  if (!section) return res.status(404).json({ error: 'Section not found' })
   try {
     const rows = await prisma.$queryRaw`
-      SELECT ST_AsGeoJSON(ST_LineInterpolatePoint(geom, LEAST(GREATEST(${m} / len, 0), 1))) AS geojson
-      FROM public.lrs_route_by_section
-      WHERE section_id = ${sectionId}
+      WITH merged AS (
+        SELECT ST_LineMerge(ST_Union(geom)) AS geom
+        FROM public."LRS"
+        WHERE trim(section_id) = ${sectionId}
+      ), len AS (
+        SELECT geom, ST_Length(geography(geom)) AS len FROM merged
+      )
+      SELECT ST_AsGeoJSON(
+        ST_LineInterpolatePoint(
+          geom,
+          LEAST(GREATEST(${m} / NULLIF(len,0), 0), 1)
+        )
+      ) AS geojson
+      FROM len
     `
-    if (!rows.length) return res.json({ type: 'FeatureCollection', features: [] })
-    const geom = rows[0].geojson ? JSON.parse(rows[0].geojson) : { type: 'FeatureCollection', features: [] }
-    res.json(geom)
+    const row = rows[0]
+    if (!row || !row.geojson) return res.status(404).json({ error: 'Section not found' })
+    const geom = JSON.parse(row.geojson)
+    res.json({ type: 'Feature', geometry: geom, properties: {} })
   } catch (e) {
     console.error('point error:', e)
     res.status(500).json({ error: 'Failed to locate point' })
@@ -175,25 +187,30 @@ app.get('/api/map/:sectionId/highlight', async (req, res) => {
   if (!Number.isFinite(from) || !Number.isFinite(to)) {
     return res.status(400).json({ error: 'from and to are required' })
   }
-  const section = await prisma.section.findUnique({ where: { id: sectionId } })
-  if (!section) return res.status(404).json({ error: 'Section not found' })
   const a = Math.min(from, to)
   const b = Math.max(from, to)
   try {
     const rows = await prisma.$queryRaw`
+      WITH merged AS (
+        SELECT ST_LineMerge(ST_Union(geom)) AS geom
+        FROM public."LRS"
+        WHERE trim(section_id) = ${sectionId}
+      ), len AS (
+        SELECT geom, ST_Length(geography(geom)) AS len FROM merged
+      )
       SELECT ST_AsGeoJSON(
         ST_LineSubstring(
           geom,
-          LEAST(GREATEST(${a} / len, 0), 1),
-          LEAST(GREATEST(${b} / len, 0), 1)
+          LEAST(GREATEST(${a} / NULLIF(len,0), 0), 1),
+          LEAST(GREATEST(${b} / NULLIF(len,0), 0), 1)
         )
       ) AS geojson
-      FROM public.lrs_route_by_section
-      WHERE section_id = ${sectionId}
+      FROM len
     `
-    if (!rows.length) return res.json({ type: 'FeatureCollection', features: [] })
-    const geom = rows[0].geojson ? JSON.parse(rows[0].geojson) : { type: 'FeatureCollection', features: [] }
-    res.json(geom)
+    const row = rows[0]
+    if (!row || !row.geojson) return res.status(404).json({ error: 'Section not found' })
+    const geom = JSON.parse(row.geojson)
+    res.json({ type: 'Feature', geometry: geom, properties: {} })
   } catch (e) {
     console.error('highlight error:', e)
     res.status(500).json({ error: 'Failed to locate segment' })
