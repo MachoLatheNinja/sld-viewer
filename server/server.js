@@ -86,6 +86,38 @@ app.get('/api/roads/:id/layers', async (req, res) => {
   res.json({ road, sections, surface, aadt, status, quality, lanes, rowWidth, carriagewayWidth, municipality, bridges, kmPosts, miow: miowBands })
 })
 
+app.get('/api/roads/:id/track', async (req, res) => {
+  const roadId = req.params.id
+  try {
+    const rows = await prisma.$queryRaw`
+      SELECT
+        ST_Length(
+          ST_LineSubstring(line, 0, ST_LineLocatePoint(line, pt.geom))::geography
+        ) / 1000 AS km,
+        ST_Y(pt.geom) AS lat,
+        ST_X(pt.geom) AS lng
+      FROM (
+        SELECT ST_LineMerge(ST_Union(geom)) AS line
+        FROM public."LRS"
+        WHERE section_id = ${roadId}
+      ) AS m
+      CROSS JOIN LATERAL ST_DumpPoints(m.line) AS pt
+      ORDER BY km
+    `
+
+    const track = rows.map(r => ({
+      km: Number(r.km) || 0,
+      lat: Number(r.lat) || 0,
+      lng: Number(r.lng) || 0,
+    }))
+
+    res.json(track)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Failed to load track' })
+  }
+})
+
 /**
  * Generic seam move:
  * - Default bands (non-bridges): keep gap-free by tying both sides to the same seam (clamped between neighbors).
