@@ -30,6 +30,11 @@ export async function fetchLayers(roadId) {
   }
 }
 
+export async function fetchTrack(roadId) {
+  const { data } = await axios.get(`${API}/api/roads/${roadId}/track`)
+  return Array.isArray(data) ? data : []
+}
+
 // ✅ Forward arbitrary extras (e.g., { edge: 'start' } for bridges)
 export async function moveBandSeam(roadId, bandKey, leftId, rightId, km, extra = {}) {
   const { data } = await axios.post(
