@@ -1,13 +1,19 @@
 import axios from 'axios'
-const API = import.meta.env.VITE_API_URL || ''
+
+// Use a relative base URL by default so Vite's dev proxy can forward
+// /api requests to the backend. In environments without the proxy, the
+// origin can be supplied via VITE_API_BASE_URL.
+export const api = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/',
+})
 
 export async function fetchRoads(q = '') {
-  const { data } = await axios.get(`${API}/api/roads`, { params: { q } })
+  const { data } = await api.get('/api/roads', { params: { q } })
   return data.map((r) => ({ ...r, lengthKm: (r.lengthM || 0) / 1000 }))
 }
 
 export async function fetchLayers(roadId) {
-  const { data } = await axios.get(`${API}/api/roads/${roadId}/layers`)
+  const { data } = await api.get(`/api/roads/${roadId}/layers`)
   const road = data.road ? { ...data.road, lengthKm: (data.road.lengthM || 0) / 1000 } : null
   const conv = (arr) => (arr || []).map((r) => ({ ...r, startKm: r.startM / 1000, endKm: r.endM / 1000 }))
   const convMiow = (arr) => (arr || []).map((r) => ({ ...r, startKm: r.startM / 1000, endKm: r.endM / 1000 }))
@@ -31,24 +37,24 @@ export async function fetchLayers(roadId) {
 }
 
 export async function fetchRoute(sectionId) {
-  const { data } = await axios.get(`${API}/api/map/${sectionId}/route`)
+  const { data } = await api.get(`/api/map/${sectionId}/route`)
   return data
 }
 
 export async function fetchPoint(sectionId, m) {
-  const { data } = await axios.get(`${API}/api/map/${sectionId}/point`, { params: { m } })
+  const { data } = await api.get(`/api/map/${sectionId}/point`, { params: { m } })
   return data
 }
 
 export async function fetchHighlight(sectionId, fromM, toM) {
-  const { data } = await axios.get(`${API}/api/map/${sectionId}/highlight`, { params: { from: fromM, to: toM } })
+  const { data } = await api.get(`/api/map/${sectionId}/highlight`, { params: { from: fromM, to: toM } })
   return data
 }
 
 // ✅ Forward arbitrary extras (e.g., { edge: 'start' } for bridges)
 export async function moveBandSeam(roadId, bandKey, leftId, rightId, km, extra = {}) {
-  const { data } = await axios.post(
-    `${API}/api/roads/${roadId}/bands/${bandKey}/move-seam`,
+  const { data } = await api.post(
+    `/api/roads/${roadId}/bands/${bandKey}/move-seam`,
     { leftId, rightId, m: km * 1000, ...extra }
   )
   return data

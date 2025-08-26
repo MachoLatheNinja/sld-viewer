@@ -11,6 +11,12 @@ const app = express()
 app.use(cors())
 app.use(bodyParser.json())
 
+// Log all incoming requests to help debug proxy issues
+app.use((req, _res, next) => {
+  console.log('[API]', req.method, req.originalUrl)
+  next()
+})
+
 const PORT = process.env.PORT || 4000
 const EPS = 1e-3
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v)) // used for non-bridge bands
