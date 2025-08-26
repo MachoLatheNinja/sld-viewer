@@ -5,6 +5,7 @@ export default function MapView({ sectionId }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const markerRef = useRef(null)
+  const [center, setCenter] = useState(null)
   const [libReady, setLibReady] = useState(() => typeof window !== 'undefined' && !!window.maplibregl)
 
   // load MapLibre via CDN once
@@ -106,6 +107,7 @@ export default function MapView({ sectionId }) {
         const pt = await fetchPoint(sectionId, centerM)
         if (pt?.geometry) {
           const [lng, lat] = pt.geometry.coordinates
+          setCenter({ lat, lng })
           markerRef.current?.setLngLat([lng, lat])
           map.easeTo({ center: [lng, lat], duration: 300, easing: (t) => t })
         }
@@ -133,5 +135,21 @@ export default function MapView({ sectionId }) {
     }
   }, [sectionId, libReady])
 
-  return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      {center && (
+        <button
+          type="button"
+          style={{ position: 'absolute', bottom: 8, right: 8, zIndex: 1 }}
+          onClick={() => {
+            const url = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${center.lat},${center.lng}`
+            window.open(url, '_blank', 'noopener')
+          }}
+        >
+          Street View
+        </button>
+      )}
+    </div>
+  )
 }
