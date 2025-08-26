@@ -1,5 +1,5 @@
 import axios from 'axios'
-const API = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+const API = import.meta.env.VITE_API_URL || ''
 
 export async function fetchRoads(q = '') {
   const { data } = await axios.get(`${API}/api/roads`, { params: { q } })

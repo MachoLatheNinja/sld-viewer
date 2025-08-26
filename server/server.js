@@ -1,6 +1,7 @@
 const express = require('express')
 const cors = require('cors')
 const bodyParser = require('body-parser')
+const path = require('path')
 require('dotenv').config({ path: './.env' })
 
 const { PrismaClient, Prisma } = require('@prisma/client')
@@ -130,19 +131,18 @@ app.get('/api/map/:sectionId/route', async (req, res) => {
   const sectionId = req.params.sectionId
   try {
     const rows = await prisma.$queryRaw`
-      WITH merged AS (
-        SELECT ST_LineMerge(ST_Union(geom)) AS geom
+      WITH r AS (
+        SELECT ST_LineMerge(ST_UnaryUnion(geom)) AS geom
         FROM public."LRS"
         WHERE trim(section_id) = ${sectionId}
       )
       SELECT ST_AsGeoJSON(geom) AS geojson,
              ST_Length(geography(geom)) AS len
-      FROM merged
+      FROM r WHERE geom IS NOT NULL
     `
     const row = rows[0]
-    if (!row || !row.geojson) return res.status(404).json({ error: 'Section not found' })
-    const geom = JSON.parse(row.geojson)
-    res.json({ type: 'Feature', geometry: geom, properties: { len: Number(row.len) || 0 } })
+    if (!row || !row.geojson) return res.status(404).json({ error: 'route not found', sectionId })
+    res.json({ type: 'Feature', geometry: JSON.parse(row.geojson), properties: { len: Number(row.len) || 0 } })
   } catch (e) {
     console.error('route error:', e)
     res.status(500).json({ error: 'Failed to load route' })
@@ -155,25 +155,25 @@ app.get('/api/map/:sectionId/point', async (req, res) => {
   if (!Number.isFinite(m)) return res.status(400).json({ error: 'm is required' })
   try {
     const rows = await prisma.$queryRaw`
-      WITH merged AS (
-        SELECT ST_LineMerge(ST_Union(geom)) AS geom
+      WITH r AS (
+        SELECT ST_LineMerge(ST_UnaryUnion(geom)) AS geom
         FROM public."LRS"
         WHERE trim(section_id) = ${sectionId}
-      ), len AS (
-        SELECT geom, ST_Length(geography(geom)) AS len FROM merged
+      ), d AS (
+        SELECT geom, NULLIF(ST_Length(geography(geom)),0) AS len_m
+        FROM r WHERE geom IS NOT NULL
       )
       SELECT ST_AsGeoJSON(
         ST_LineInterpolatePoint(
           geom,
-          LEAST(GREATEST(${m} / NULLIF(len,0), 0), 1)
+          GREATEST(0, LEAST(1, ${m} / len_m))
         )
       ) AS geojson
-      FROM len
+      FROM d
     `
     const row = rows[0]
-    if (!row || !row.geojson) return res.status(404).json({ error: 'Section not found' })
-    const geom = JSON.parse(row.geojson)
-    res.json({ type: 'Feature', geometry: geom, properties: {} })
+    if (!row || !row.geojson) return res.status(404).json({ error: 'point not found', sectionId, m })
+    res.json({ type: 'Feature', geometry: JSON.parse(row.geojson), properties: {} })
   } catch (e) {
     console.error('point error:', e)
     res.status(500).json({ error: 'Failed to locate point' })
@@ -191,26 +191,26 @@ app.get('/api/map/:sectionId/highlight', async (req, res) => {
   const b = Math.max(from, to)
   try {
     const rows = await prisma.$queryRaw`
-      WITH merged AS (
-        SELECT ST_LineMerge(ST_Union(geom)) AS geom
+      WITH r AS (
+        SELECT ST_LineMerge(ST_UnaryUnion(geom)) AS geom
         FROM public."LRS"
         WHERE trim(section_id) = ${sectionId}
-      ), len AS (
-        SELECT geom, ST_Length(geography(geom)) AS len FROM merged
+      ), d AS (
+        SELECT geom, NULLIF(ST_Length(geography(geom)),0) AS len_m
+        FROM r WHERE geom IS NOT NULL
       )
       SELECT ST_AsGeoJSON(
         ST_LineSubstring(
           geom,
-          LEAST(GREATEST(${a} / NULLIF(len,0), 0), 1),
-          LEAST(GREATEST(${b} / NULLIF(len,0), 0), 1)
+          GREATEST(0, LEAST(1, ${a} / len_m)),
+          GREATEST(0, LEAST(1, ${b} / len_m))
         )
       ) AS geojson
-      FROM len
+      FROM d
     `
     const row = rows[0]
-    if (!row || !row.geojson) return res.status(404).json({ error: 'Section not found' })
-    const geom = JSON.parse(row.geojson)
-    res.json({ type: 'Feature', geometry: geom, properties: {} })
+    if (!row || !row.geojson) return res.status(404).json({ error: 'segment not found', sectionId, from: a, to: b })
+    res.json({ type: 'Feature', geometry: JSON.parse(row.geojson), properties: {} })
   } catch (e) {
     console.error('highlight error:', e)
     res.status(500).json({ error: 'Failed to locate segment' })
@@ -357,6 +357,17 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
     console.error('move-seam error:', e)
     res.status(400).json({ error: String(e.message || e) })
   }
+})
+
+// static files AFTER api routes
+app.use(express.static(path.join(__dirname, '..', 'client', 'dist')))
+
+// distinctive JSON 404 for anything else
+app.use((req, res) => {
+  res
+    .status(404)
+    .type('application/json')
+    .send(JSON.stringify({ api404: true, method: req.method, path: req.path }))
 })
 
 app.listen(PORT, () => {
