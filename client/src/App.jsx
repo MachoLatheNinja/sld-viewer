@@ -272,6 +272,18 @@ export default function App() {
     }
   }, [highlightRange, scale, fromKm, toKm])
 
+  const guides = useMemo(() => {
+    const arr = []
+    if (rangePx) {
+      arr.push({ km: highlightRange.startKm, left: rangePx.lineLeft, color: '#2196f3' })
+      arr.push({ km: highlightRange.endKm, left: rangePx.lineRight, color: '#2196f3' })
+    }
+    if (activeKm != null && guideLeft != null) {
+      arr.push({ km: activeKm, left: guideLeft, color: '#FFC107' })
+    }
+    return arr
+  }, [rangePx, highlightRange, activeKm, guideLeft])
+
   const handlePanelMouseMove = (e) => {
     if (!scale) return
     hoverClientX.current = e.clientX
@@ -472,8 +484,7 @@ export default function App() {
               groups={bandGroups}
               layers={layers}
               domain={domain}
-              activeKm={activeKm}
-              guideLeft={guideLeft}
+              guides={guides}
               contentRef={contentRef}
               scale={scale}
             />
@@ -485,24 +496,20 @@ export default function App() {
                 <div
                   style={{ position:'absolute', top:0, bottom:0, left:rangePx.right, right:0, background:'rgba(255,255,255,0.75)', backdropFilter:'grayscale(90%)', pointerEvents:'none', zIndex:5 }}
                 />
-                <div
-                  style={{ position:'absolute', top:0, bottom:0, left:rangePx.lineLeft, width:1, background:'#2196f3', pointerEvents:'none', zIndex:8 }}
-                />
-                <div
-                  style={{ position:'absolute', top:0, bottom:0, left:rangePx.lineRight, width:1, background:'#2196f3', pointerEvents:'none', zIndex:8 }}
-                />
               </>
             )}
-            {activeKm != null && guideLeft != null && (
+            {guides.map((g, idx) => (
               <div
-                style={{ position:'absolute', top:0, bottom:0, left:guideLeft, width:1, background:'#FFC107', pointerEvents:'none', zIndex:10 }}
+                key={`line-${idx}`}
+                style={{ position:'absolute', top:0, bottom:0, left:g.left, width:1, background:g.color, pointerEvents:'none', zIndex:10 }}
               />
-            )}
-            {activeKm != null && guideLeft != null && (
+            ))}
+            {guides.map((g, idx) => (
               <div
+                key={`tip-${idx}`}
                 style={{
                   position:'absolute',
-                  left:guideLeft,
+                  left:g.left,
                   top: (layout ? layout.axisY : 0) - 8,
                   transform:'translate(-50%, -100%)',
                   background:'rgba(0,0,0,0.7)',
@@ -515,10 +522,10 @@ export default function App() {
                   zIndex:40,
                 }}
               >
-                <div>{formatLRP(activeKm + (currentSection?.startKm || 0), layers?.kmPosts)}</div>
-                <div>{formatChainage(Math.round((activeKm + (currentSection?.startKm || 0)) * 1000))}</div>
+                <div>{formatLRP(g.km + (currentSection?.startKm || 0), layers?.kmPosts)}</div>
+                <div>{formatChainage(Math.round((g.km + (currentSection?.startKm || 0)) * 1000))}</div>
               </div>
-            )}
+            ))}
           </div>
           <div style={{ fontSize:12, color:'#616161', marginTop:6 }}>
             Drag seams to edit. Bridges allow gaps and support dragging either edge. Pan by dragging; scroll to zoom.
