@@ -153,22 +153,21 @@ router.get('/map/:sectionId/route', async (req, res) => {
   console.log('[route] sectionId =', JSON.stringify(sectionId))
   try {
     const rows = await prisma.$queryRaw`
-      WITH u AS (
-        SELECT ST_Union(geom) AS geom
+      WITH r AS (
+        SELECT ST_LineMerge(ST_Collect(geom)) AS geom
         FROM public."LRS"
-        WHERE lower(trim(section_id)) = lower(trim(${sectionId}))
-      ), r AS (
-        SELECT ST_LineMerge(geom) AS geom FROM u
+        WHERE trim(section_id) = trim(${sectionId})
       )
       SELECT
-        ST_AsGeoJSON(geom) AS geojson,
-        ST_Length(geography(geom)) AS len,
-        (SELECT COUNT(*) FROM public."LRS" WHERE lower(trim(section_id)) = lower(trim(${sectionId}))) AS cnt
-      FROM r
-      WHERE geom IS NOT NULL;
+        ST_AsGeoJSON(ST_Force2D(geom)) AS geojson,
+        ST_HasM(geom) AS has_m,
+        ST_MinM(geom) AS m_min,
+        ST_MaxM(geom) AS m_max,
+        (SELECT COUNT(*) FROM public."LRS" WHERE trim(section_id) = trim(${sectionId})) AS cnt
+      FROM r WHERE geom IS NOT NULL;
     `
     const row = rows[0]
-    if (!rows.length || !row.geojson) {
+    if (!row || !row.geojson) {
       const near = await prisma.$queryRaw`
         SELECT section_id, length(section_id) AS len
         FROM public."LRS"
@@ -182,7 +181,14 @@ router.get('/map/:sectionId/route', async (req, res) => {
         nearMatches: near,
       })
     }
-    res.json({ type: 'Feature', geometry: JSON.parse(row.geojson), properties: { len: Number(row.len) || 0 } })
+    if (!row.has_m) {
+      return res.status(500).json({ error: 'route geometry lacks M values', sectionId })
+    }
+    res.json({
+      type: 'Feature',
+      geometry: JSON.parse(row.geojson),
+      properties: { mMin: Number(row.m_min), mMax: Number(row.m_max) },
+    })
   } catch (e) {
     console.error('route error:', e)
     res.status(500).json({ error: 'server error', detail: String(e) })
@@ -196,29 +202,31 @@ router.get('/map/:sectionId/point', async (req, res) => {
   if (!Number.isFinite(m)) return res.status(400).json({ error: 'm is required' })
   try {
     const rows = await prisma.$queryRaw`
-      WITH u AS (
-        SELECT ST_Union(geom) AS geom
+      WITH r AS (
+        SELECT ST_LineMerge(ST_Collect(geom)) AS geom
         FROM public."LRS"
-        WHERE lower(trim(section_id)) = lower(trim(${sectionId}))
-      ), r AS (
-        SELECT ST_LineMerge(geom) AS geom FROM u
-      ), d AS (
-        SELECT geom, NULLIF(ST_Length(geography(geom)),0) AS len_m
-        FROM r WHERE geom IS NOT NULL
+        WHERE trim(section_id) = trim(${sectionId})
       )
-      SELECT ST_AsGeoJSON(
-        ST_LineInterpolatePoint(
-          geom,
-          GREATEST(0, LEAST(1, ${m}/len_m))
-        )
-      ) AS geojson
-      FROM d;
+      SELECT
+        ST_AsGeoJSON(ST_Force2D((ST_Dump(ST_LocateAlong(geom, ${m}))).geom)) AS geojson,
+        ST_MinM(geom) AS m_min,
+        ST_MaxM(geom) AS m_max,
+        ST_HasM(geom) AS has_m
+      FROM r WHERE geom IS NOT NULL;
     `
     const row = rows[0]
-    if (!rows.length || !row.geojson) {
+    if (!row || !row.has_m) {
+      return res.status(500).json({ error: 'route geometry lacks M values', sectionId })
+    }
+    const minM = Number(row.m_min)
+    const maxM = Number(row.m_max)
+    if (!(m >= minM && m <= maxM)) {
+      return res.status(404).json({ error: 'm outside range', sectionId, m, minM, maxM })
+    }
+    if (!row.geojson) {
       return res.status(404).json({ error: 'point not found', sectionId, m })
     }
-    res.json({ type: 'Feature', geometry: JSON.parse(row.geojson), properties: {} })
+    res.json({ type: 'Feature', geometry: JSON.parse(row.geojson), properties: { minM, maxM } })
   } catch (e) {
     console.error('point error:', e)
     res.status(500).json({ error: 'server error', detail: String(e) })
@@ -236,28 +244,31 @@ router.get('/map/:sectionId/highlight', async (req, res) => {
   const b = Math.max(from, to)
   try {
     const rows = await prisma.$queryRaw`
-      WITH u AS (
-        SELECT ST_Union(geom) AS geom
+      WITH r AS (
+        SELECT ST_LineMerge(ST_Collect(geom)) AS geom
         FROM public."LRS"
-        WHERE lower(trim(section_id)) = lower(trim(${sectionId}))
-      ), r AS (
-        SELECT ST_LineMerge(geom) AS geom FROM u
-      ), d AS (
-        SELECT geom, NULLIF(ST_Length(geography(geom)),0) AS len_m
-        FROM r WHERE geom IS NOT NULL
+        WHERE trim(section_id) = trim(${sectionId})
       )
-      SELECT ST_AsGeoJSON(
-        ST_LineSubstring(
-          geom,
-          GREATEST(0, LEAST(1, ${a} / len_m)),
-          GREATEST(0, LEAST(1, ${b} / len_m))
-        )
-      ) AS geojson
-      FROM d
+      SELECT
+        ST_AsGeoJSON(ST_Force2D(ST_LocateBetween(geom, ${a}, ${b}))) AS geojson,
+        ST_MinM(geom) AS m_min,
+        ST_MaxM(geom) AS m_max,
+        ST_HasM(geom) AS has_m
+      FROM r WHERE geom IS NOT NULL;
     `
     const row = rows[0]
-    if (!row || !row.geojson) return res.status(404).json({ error: 'segment not found', sectionId, from: a, to: b })
-    res.json({ type: 'Feature', geometry: JSON.parse(row.geojson), properties: {} })
+    if (!row || !row.has_m) {
+      return res.status(500).json({ error: 'route geometry lacks M values', sectionId })
+    }
+    const minM = Number(row.m_min)
+    const maxM = Number(row.m_max)
+    if (b < minM || a > maxM) {
+      return res.status(404).json({ error: 'range outside route', sectionId, from: a, to: b, minM, maxM })
+    }
+    if (!row.geojson) {
+      return res.status(404).json({ error: 'segment not found', sectionId, from: a, to: b })
+    }
+    res.json({ type: 'Feature', geometry: JSON.parse(row.geojson), properties: { minM, maxM } })
   } catch (e) {
     console.error('highlight error:', e)
     res.status(500).json({ error: 'server error', detail: String(e) })
