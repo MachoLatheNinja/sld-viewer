@@ -159,6 +159,12 @@ export default function App() {
   }, [guideKm, sectionId, sectionList])
 
   useEffect(() => {
+    if (!highlightRange) return
+    setFromKm(highlightRange.startKm)
+    setToKm(highlightRange.endKm)
+  }, [highlightRange])
+
+  useEffect(() => {
     const years = Array.from(new Set((allLayers?.miow || []).map(r => r.year))).sort((a,b) => b - a)
     const next = DEFAULT_BAND_GROUPS.map(g => ({ ...g, bands:[...g.bands] }))
     const hist = next.find(g => g.key === 'historical')
