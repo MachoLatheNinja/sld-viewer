@@ -1,8 +1,15 @@
 function parseLrpParts(lrp) {
   const s = (lrp || '').replace(/\s+/g, '').toUpperCase();
-  const m = /^K?M?(\d+)(?:\+(\d+))?$/.exec(s);
+  const m = /^K?M?(\d+)(?:\+(\d*(?:\.\d+)?))?$/.exec(s);
   if (!m) return null;
-  return { km: Number(m[1]), meters: m[2] ? Number(m[2]) : 0 };
+  let km = Number(m[1]);
+  let meters = m[2] ? Math.round(Number(m[2])) : 0;
+  if (Number.isNaN(km) || Number.isNaN(meters)) return null;
+  if (meters >= 1000) {
+    km += Math.floor(meters / 1000);
+    meters = meters % 1000;
+  }
+  return { km, meters };
 }
 
 export function parseLrpKm(lrp) {
@@ -78,4 +85,21 @@ export function lrpToChainageKm(lrp, posts = []) {
   }
 
   return km + offsetKm;
+}
+
+export function parseLrpRange(input, posts = []) {
+  if (!input) return null;
+  const normalized = input
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/\bto\b/i, '-')
+    .split('-')
+    .map(s => s.trim())
+    .filter(Boolean);
+  if (!normalized.length) return null;
+  const start = lrpToChainageKm(normalized[0], posts);
+  if (start == null) return null;
+  const end = normalized[1] ? lrpToChainageKm(normalized[1], posts) : null;
+  return end == null
+    ? { startKm: start, endKm: null }
+    : { startKm: Math.min(start, end), endKm: Math.max(start, end) };
 }

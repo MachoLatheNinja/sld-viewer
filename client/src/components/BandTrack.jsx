@@ -17,7 +17,7 @@ function formatAADT(n){
   return n==null ? '' : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 }
 
-export default function BandTrack({ band, layers, domain, activeKm, guideLeft, contentRef, scale }) {
+export default function BandTrack({ band, layers, domain, guides = [], contentRef, scale }) {
   const canvasRef = useRef(null)
   const trackRef = useRef(null)
   const height = Math.max(18, Math.min(20, Number(band.height) || 20))
@@ -76,6 +76,41 @@ export default function BandTrack({ band, layers, domain, activeKm, guideLeft, c
       }
     }
 
+    const drawProjectRanges = (ranges) => {
+      ctx.font = '12px system-ui'
+      ctx.textBaseline = 'middle'
+      const arr = (ranges || []).map(r => ({ ...r })).sort((a, b) => a.startKm - b.startKm)
+      const laneEnd = []
+      arr.forEach(r => {
+        let lane = laneEnd.findIndex(end => r.startKm >= end)
+        if (lane === -1) lane = laneEnd.length
+        laneEnd[lane] = r.endKm
+        r.lane = lane
+      })
+      const laneH = laneEnd.length ? h / laneEnd.length : h
+      arr.forEach(r => {
+        if (r.endKm < fromKm || r.startKm > toKm) return
+        const { x, w:segW } = scale.rectPx(
+          Math.max(r.startKm, fromKm) * 1000,
+          Math.min(r.endKm, toKm) * 1000
+        )
+        if (segW <= 0) return
+        const y = (r.lane || 0) * laneH
+        ctx.fillStyle = 'rgba(25,118,210,0.5)'
+        ctx.fillRect(x, y, segW, laneH)
+        const label = r.typeOfWork || ''
+        if (label) {
+          const textW = ctx.measureText(label).width
+          if (segW >= textW + 4) {
+            ctx.fillStyle = '#fff'
+            ctx.textAlign = 'center'
+            ctx.fillText(label, x + segW / 2, y + laneH / 2)
+            ctx.textAlign = 'left'
+          }
+        }
+      })
+    }
+
     switch (band.key) {
       case 'surface':
         drawRanges(layers?.surface, r => SURFACE_COLORS[r.surface]||'#bdbdbd', r => r.surfacePerLane || r.surface)
@@ -107,52 +142,55 @@ export default function BandTrack({ band, layers, domain, activeKm, guideLeft, c
       default:
         if (band.key.startsWith('miow_')) {
           const year = band.key.split('_')[1]
-          drawRanges(layers?.miow?.[year], () => '#1976d2', r => r.typeOfWork || '')
+          drawProjectRanges(layers?.miow?.[year])
         }
         break
     }
   }, [band, layers, domain, height, scale])
 
-  const segments = activeKm != null ? bandSegmentsAt(layers, band.key, activeKm) : []
-  let left = null
-  if (guideLeft != null && contentRef?.current && trackRef.current) {
+  let guideData = []
+  if (contentRef?.current && trackRef.current) {
     const trackRect = trackRef.current.getBoundingClientRect()
     const contentRect = contentRef.current.getBoundingClientRect()
-    left = guideLeft - trackRect.left + contentRect.left
-  }
-
-  const baseStyle = {
-    position: 'absolute',
-    left,
-    top: '50%',
-    background: 'rgba(0,0,0,0.7)',
-    color: '#fff',
-    borderRadius: 9999,
-    padding: '0 6px',
-    fontSize: 11,
-    whiteSpace: 'nowrap',
-    pointerEvents: 'none',
-    zIndex: 40,
+    guideData = guides.map(g => {
+      const left = g.left != null ? g.left - trackRect.left + contentRect.left : null
+      const segs = g.km != null ? bandSegmentsAt(layers, band.key, g.km) : []
+      return { left, segs }
+    }).filter(g => g.left != null && g.segs.length > 0)
   }
 
   return (
     <div ref={trackRef} data-band-key={band.key} style={{ position:'relative', height, overflow:'visible' }}>
       <canvas ref={canvasRef} style={{ width:'100%', height }} />
-      {left != null && segments.length > 0 && segments.map((seg, idx) => {
+      {guideData.map((g, gIdx) => g.segs.map((seg, idx) => {
         const lbl = bandValue(band.key, seg)
         if (!lbl) return null
         let transform = 'translate(-50%, -50%)'
-        if (segments.length === 2) {
+        if (g.segs.length === 2) {
           transform = idx === 0
             ? 'translate(calc(-100% - 2px), -50%)'
             : 'translate(2px, -50%)'
         }
+        const style = {
+          position: 'absolute',
+          left: g.left,
+          top: '50%',
+          background: 'rgba(0,0,0,0.7)',
+          color: '#fff',
+          borderRadius: 9999,
+          padding: '0 6px',
+          fontSize: 11,
+          whiteSpace: 'nowrap',
+          pointerEvents: 'none',
+          zIndex: 40,
+          transform,
+        }
         return (
-          <div key={idx} style={{ ...baseStyle, transform }}>
+          <div key={`${gIdx}-${idx}`} style={style}>
             {lbl}
           </div>
         )
-      })}
+      }))}
     </div>
   )
 }
