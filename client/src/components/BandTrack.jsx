@@ -76,6 +76,41 @@ export default function BandTrack({ band, layers, domain, guides = [], contentRe
       }
     }
 
+    const drawProjectRanges = (ranges) => {
+      ctx.font = '12px system-ui'
+      ctx.textBaseline = 'middle'
+      const arr = (ranges || []).map(r => ({ ...r })).sort((a, b) => a.startKm - b.startKm)
+      const laneEnd = []
+      arr.forEach(r => {
+        let lane = laneEnd.findIndex(end => r.startKm >= end)
+        if (lane === -1) lane = laneEnd.length
+        laneEnd[lane] = r.endKm
+        r.lane = lane
+      })
+      const laneH = laneEnd.length ? h / laneEnd.length : h
+      arr.forEach(r => {
+        if (r.endKm < fromKm || r.startKm > toKm) return
+        const { x, w:segW } = scale.rectPx(
+          Math.max(r.startKm, fromKm) * 1000,
+          Math.min(r.endKm, toKm) * 1000
+        )
+        if (segW <= 0) return
+        const y = (r.lane || 0) * laneH
+        ctx.fillStyle = 'rgba(25,118,210,0.5)'
+        ctx.fillRect(x, y, segW, laneH)
+        const label = r.typeOfWork || ''
+        if (label) {
+          const textW = ctx.measureText(label).width
+          if (segW >= textW + 4) {
+            ctx.fillStyle = '#fff'
+            ctx.textAlign = 'center'
+            ctx.fillText(label, x + segW / 2, y + laneH / 2)
+            ctx.textAlign = 'left'
+          }
+        }
+      })
+    }
+
     switch (band.key) {
       case 'surface':
         drawRanges(layers?.surface, r => SURFACE_COLORS[r.surface]||'#bdbdbd', r => r.surfacePerLane || r.surface)
@@ -107,11 +142,7 @@ export default function BandTrack({ band, layers, domain, guides = [], contentRe
       default:
         if (band.key.startsWith('miow_')) {
           const year = band.key.split('_')[1]
-          drawRanges(
-            layers?.miow?.[year],
-            () => 'rgba(25,118,210,0.5)',
-            r => r.typeOfWork || ''
-          )
+          drawProjectRanges(layers?.miow?.[year])
         }
         break
     }
