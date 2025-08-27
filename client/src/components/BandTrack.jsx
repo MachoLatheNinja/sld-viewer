@@ -107,7 +107,11 @@ export default function BandTrack({ band, layers, domain, guides = [], contentRe
       default:
         if (band.key.startsWith('miow_')) {
           const year = band.key.split('_')[1]
-          drawRanges(layers?.miow?.[year], () => '#1976d2', r => r.typeOfWork || '')
+          drawRanges(
+            layers?.miow?.[year],
+            () => 'rgba(25,118,210,0.5)',
+            r => r.typeOfWork || ''
+          )
         }
         break
     }
