@@ -4,6 +4,7 @@ import ControlBar from './components/ControlBar'
 import SLDCanvasV2 from './components/SLDCanvasV2'
 import { DEFAULT_BAND_GROUPS, bandArrayByKey } from './bands'
 import BandAccordion, { LABEL_W } from './components/BandAccordion'
+import MapView from './components/MapView'
 import { lrpToChainageKm, formatLRP, parseLrpRange } from './lrp'
 
 const EPS = 1e-6
@@ -405,9 +406,28 @@ export default function App() {
     return () => el.removeEventListener('wheel', handlePanelWheel)
   }, [handlePanelWheel])
 
+  useEffect(() => {
+    if (!currentSection) return
+    const detail = {
+      startM: (currentSection.startKm + fromKm) * 1000,
+      endM: (currentSection.startKm + toKm) * 1000,
+      centerM: (currentSection.startKm + (fromKm + toKm) / 2) * 1000,
+    }
+    if (highlightRange) {
+      detail.activeRange = {
+        fromM: (currentSection.startKm + highlightRange.startKm) * 1000,
+        toM: (currentSection.startKm + highlightRange.endKm) * 1000,
+      }
+    }
+    window.dispatchEvent(new CustomEvent('sld:viewport', { detail }))
+  }, [currentSection, fromKm, toKm, highlightRange])
+
   return (
-    <div style={{ fontFamily:'Inter, system-ui, Arial', background:'#f0f2f5', minHeight:'100vh' }}>
-      <div style={{ maxWidth: 1400, margin:'0 auto', padding:'16px' }}>
+    <div style={{ fontFamily:'Inter, system-ui, Arial', background:'#f0f2f5', minHeight:'100vh', display:'flex' }}>
+      <div style={{ width:260, padding:'16px 8px' }}>
+        <MapView sectionId={sectionId} />
+      </div>
+      <div style={{ flex:1, maxWidth: 1400, margin:'0 auto', padding:'16px' }}>
         <div style={{ display:'flex', gap:12, alignItems:'center', marginBottom:8 }}>
           <h2 style={{ margin:0 }}>Road Analyzer — SLD</h2>
           <div style={{ marginLeft:'auto', display:'flex', gap:8 }}>

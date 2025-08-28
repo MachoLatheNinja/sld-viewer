@@ -1,14 +1,33 @@
 const express = require('express')
 const cors = require('cors')
 const bodyParser = require('body-parser')
+const path = require('path')
 require('dotenv').config({ path: './.env' })
 
 const { PrismaClient, Prisma } = require('@prisma/client')
 const prisma = new PrismaClient()
 
+;(async () => {
+  try {
+    // Ensure PostGIS functions in the "public" schema are visible
+    await prisma.$executeRaw`SET search_path TO road_analyzer, public`
+    const info = await prisma.$queryRaw`SELECT current_database() AS db, current_schema() AS sch, current_setting('search_path') AS search_path`
+    console.log('[DB]', info[0])
+  } catch (e) {
+    console.error('DB info error:', e)
+  }
+})()
+
 const app = express()
-app.use(cors())
 app.use(bodyParser.json())
+
+// Log all incoming requests to help debug proxy issues
+app.use((req, _res, next) => {
+  console.log('[API]', req.method, req.originalUrl)
+  next()
+})
+
+const router = express.Router()
 
 const PORT = process.env.PORT || 4000
 const EPS = 1e-3
@@ -38,10 +57,10 @@ function eqRow(a = {}, b = {}, meta = {}){
 }
 
 // ---------- health ----------
-app.get('/health', (_req, res) => res.json({ ok: true }))
+router.get('/health', (_req, res) => res.json({ ok: true }))
 
 // ---------- roads ----------
-app.get('/api/roads', async (req, res) => {
+router.get('/roads', async (req, res) => {
   const q = (req.query.q ?? '').toString().trim()
   const roads = await prisma.road.findMany({
     where: q ? { name: { contains: q, mode: 'insensitive' } } : {},
@@ -51,7 +70,7 @@ app.get('/api/roads', async (req, res) => {
 })
 
 // all layers (per-band tables)
-app.get('/api/roads/:id/layers', async (req, res) => {
+router.get('/roads/:id/layers', async (req, res) => {
   const roadId = req.params.id
   const road = await prisma.road.findUnique({ where: { id: roadId } })
   if (!road) return res.status(404).json({ error: 'Road not found' })
@@ -86,6 +105,176 @@ app.get('/api/roads/:id/layers', async (req, res) => {
   res.json({ road, sections, surface, aadt, status, quality, lanes, rowWidth, carriagewayWidth, municipality, bridges, kmPosts, miow: miowBands })
 })
 
+router.get('/roads/:id/track', async (req, res) => {
+  const roadId = req.params.id
+  try {
+    const sections = await prisma.section.findMany({
+      where: { roadId },
+      select: { id: true }
+    })
+    if (!sections.length) return res.json([])
+
+    const ids = sections.map(s => s.id)
+    const rows = await prisma.$queryRaw`
+      WITH u AS (
+        SELECT ST_Union(geom) AS geom
+        FROM public."LRS"
+        WHERE section_id IN (${Prisma.join(ids)})
+      ), m AS (
+        SELECT ST_LineMerge(geom) AS line FROM u
+      )
+      SELECT
+        ST_Length(
+          ST_LineSubstring(line, 0, ST_LineLocatePoint(line, pt.geom))::geography
+        ) / 1000 AS km,
+        ST_Y(pt.geom) AS lat,
+        ST_X(pt.geom) AS lng
+      FROM m
+      CROSS JOIN LATERAL ST_DumpPoints(m.line) AS pt
+      ORDER BY km
+    `
+
+    const track = rows.map(r => ({
+      km: Number(r.km) || 0,
+      lat: Number(r.lat) || 0,
+      lng: Number(r.lng) || 0,
+    }))
+
+    res.json(track)
+  } catch (err) {
+    console.error('track error:', err)
+    res.status(500).json({ error: 'Failed to load track' })
+  }
+})
+
+// ---- map endpoints ----
+router.get('/map/:sectionId/route', async (req, res) => {
+  const { sectionId } = req.params
+  console.log('[route] sectionId =', JSON.stringify(sectionId))
+  try {
+    const rows = await prisma.$queryRaw`
+      WITH r AS (
+        SELECT ST_LineMerge(ST_Collect(geom)) AS geom
+        FROM public."LRS"
+        WHERE trim(section_id) = trim(${sectionId})
+      )
+      SELECT
+        ST_AsGeoJSON(ST_Force2D(geom)) AS geojson,
+        ST_HasM(geom) AS has_m,
+        ST_MinM(geom) AS m_min,
+        ST_MaxM(geom) AS m_max,
+        (SELECT COUNT(*) FROM public."LRS" WHERE trim(section_id) = trim(${sectionId})) AS cnt
+      FROM r WHERE geom IS NOT NULL;
+    `
+    const row = rows[0]
+    if (!row || !row.geojson) {
+      const near = await prisma.$queryRaw`
+        SELECT section_id, length(section_id) AS len
+        FROM public."LRS"
+        WHERE section_id ILIKE '%' || ${sectionId} || '%'
+        GROUP BY section_id ORDER BY section_id LIMIT 5
+      `
+      return res.status(404).json({
+        error: 'route not found',
+        sectionId,
+        matchesTried: row?.cnt ?? 0,
+        nearMatches: near,
+      })
+    }
+    if (!row.has_m) {
+      return res.status(500).json({ error: 'route geometry lacks M values', sectionId })
+    }
+    res.json({
+      type: 'Feature',
+      geometry: JSON.parse(row.geojson),
+      properties: { mMin: Number(row.m_min), mMax: Number(row.m_max) },
+    })
+  } catch (e) {
+    console.error('route error:', e)
+    res.status(500).json({ error: 'server error', detail: String(e) })
+  }
+})
+
+router.get('/map/:sectionId/point', async (req, res) => {
+  const { sectionId } = req.params
+  const m = Number(req.query.m ?? '0')
+  console.log('[point] sectionId =', JSON.stringify(sectionId), 'm =', m)
+  if (!Number.isFinite(m)) return res.status(400).json({ error: 'm is required' })
+  try {
+    const rows = await prisma.$queryRaw`
+      WITH r AS (
+        SELECT ST_LineMerge(ST_Collect(geom)) AS geom
+        FROM public."LRS"
+        WHERE trim(section_id) = trim(${sectionId})
+      )
+      SELECT
+        ST_AsGeoJSON(ST_Force2D((ST_Dump(ST_LocateAlong(geom, ${m}))).geom)) AS geojson,
+        ST_MinM(geom) AS m_min,
+        ST_MaxM(geom) AS m_max,
+        ST_HasM(geom) AS has_m
+      FROM r WHERE geom IS NOT NULL;
+    `
+    const row = rows[0]
+    if (!row || !row.has_m) {
+      return res.status(500).json({ error: 'route geometry lacks M values', sectionId })
+    }
+    const minM = Number(row.m_min)
+    const maxM = Number(row.m_max)
+    if (!(m >= minM && m <= maxM)) {
+      return res.status(404).json({ error: 'm outside range', sectionId, m, minM, maxM })
+    }
+    if (!row.geojson) {
+      return res.status(404).json({ error: 'point not found', sectionId, m })
+    }
+    res.json({ type: 'Feature', geometry: JSON.parse(row.geojson), properties: { minM, maxM } })
+  } catch (e) {
+    console.error('point error:', e)
+    res.status(500).json({ error: 'server error', detail: String(e) })
+  }
+})
+
+router.get('/map/:sectionId/highlight', async (req, res) => {
+  const sectionId = req.params.sectionId
+  const from = Number(req.query.from)
+  const to = Number(req.query.to)
+  if (!Number.isFinite(from) || !Number.isFinite(to)) {
+    return res.status(400).json({ error: 'from and to are required' })
+  }
+  const a = Math.min(from, to)
+  const b = Math.max(from, to)
+  try {
+    const rows = await prisma.$queryRaw`
+      WITH r AS (
+        SELECT ST_LineMerge(ST_Collect(geom)) AS geom
+        FROM public."LRS"
+        WHERE trim(section_id) = trim(${sectionId})
+      )
+      SELECT
+        ST_AsGeoJSON(ST_Force2D(ST_LocateBetween(geom, ${a}, ${b}))) AS geojson,
+        ST_MinM(geom) AS m_min,
+        ST_MaxM(geom) AS m_max,
+        ST_HasM(geom) AS has_m
+      FROM r WHERE geom IS NOT NULL;
+    `
+    const row = rows[0]
+    if (!row || !row.has_m) {
+      return res.status(500).json({ error: 'route geometry lacks M values', sectionId })
+    }
+    const minM = Number(row.m_min)
+    const maxM = Number(row.m_max)
+    if (b < minM || a > maxM) {
+      return res.status(404).json({ error: 'range outside route', sectionId, from: a, to: b, minM, maxM })
+    }
+    if (!row.geojson) {
+      return res.status(404).json({ error: 'segment not found', sectionId, from: a, to: b })
+    }
+    res.json({ type: 'Feature', geometry: JSON.parse(row.geojson), properties: { minM, maxM } })
+  } catch (e) {
+    console.error('highlight error:', e)
+    res.status(500).json({ error: 'server error', detail: String(e) })
+  }
+})
+
 /**
  * Generic seam move:
  * - Default bands (non-bridges): keep gap-free by tying both sides to the same seam (clamped between neighbors).
@@ -98,7 +287,7 @@ app.get('/api/roads/:id/layers', async (req, res) => {
  *   non-bridges: { leftId:number, rightId:number, m:number }
  *   bridges:     { leftId?:number, rightId?:number, m:number, edge:'start'|'end' }
  */
-app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
+router.post('/roads/:id/bands/:band/move-seam', async (req, res) => {
   const roadId = req.params.id
   const band = String(req.params.band)
   const meta = BAND_META[band]
@@ -226,6 +415,20 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
     console.error('move-seam error:', e)
     res.status(400).json({ error: String(e.message || e) })
   }
+})
+
+// mount API routes and enable CORS
+app.use('/api', cors(), router)
+
+// static files AFTER api routes
+app.use(express.static(path.join(__dirname, '..', 'client', 'dist')))
+
+// distinctive JSON 404 for anything else
+app.use((req, res) => {
+  res
+    .status(404)
+    .type('application/json')
+    .send(JSON.stringify({ api404: true, method: req.method, path: req.path }))
 })
 
 app.listen(PORT, () => {
