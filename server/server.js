@@ -234,14 +234,21 @@ const fs = require('fs')
 // Serve static client files (only after API routes are defined)
 const clientDist = path.join(__dirname, '..', 'client', 'dist')
 if (fs.existsSync(clientDist)) {
-  app.use(express.static(clientDist))
+  app.use((req, res, next) => {
+  console.log('[REQ]', new Date().toISOString(), req.method, req.originalUrl, 'qs=', req.query)
+  next()
 
   // SPA fallback: serve index.html for non-API GET requests only
-  app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api')) return next()     // let API routes handle /api/*
-    const indexHtml = path.join(clientDist, 'index.html')
-    if (fs.existsSync(indexHtml)) return res.sendFile(indexHtml)
-    return res.status(404).send('Not Found')
+  app.get('/api/debug/db', async (_req, res) => {
+  try {
+    const version = await prisma.$queryRaw`SELECT version()`
+    const roads = await prisma.road.count().catch(() => null)
+    const sections = await prisma.section.count().catch(() => null)
+    return res.json({ ok: true, version, roads, sections })
+  } catch (e) {
+    console.error('[debug db error]', e)
+    return res.status(500).json({ ok: false, error: String(e.message || e) })
+  }
   })
 }
 // ================================================
