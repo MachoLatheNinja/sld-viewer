@@ -231,20 +231,19 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
 const path = require('path')
 const fs = require('fs')
 
-// === Serve static client (Vite build output) ===
-// adjust path if your client build output differs
+// Serve static client files (only after API routes are defined)
 const clientDist = path.join(__dirname, '..', 'client', 'dist')
-app.use(express.static(clientDist))
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist))
 
-// SPA fallback: return index.html for all GET requests not handled by API
-app.get('*', (req, res) => {
-  const indexHtml = path.join(clientDist, 'index.html')
-  if (fs.existsSync(indexHtml)) {
-    res.sendFile(indexHtml)
-  } else {
-    res.status(404).send('Not Found')
-  }
-})
+  // SPA fallback: serve index.html for non-API GET requests only
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next()     // let API routes handle /api/*
+    const indexHtml = path.join(clientDist, 'index.html')
+    if (fs.existsSync(indexHtml)) return res.sendFile(indexHtml)
+    return res.status(404).send('Not Found')
+  })
+}
 // ================================================
 
 
