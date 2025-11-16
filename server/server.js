@@ -228,6 +228,27 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
   }
 })
 
-app.listen(PORT, () => {
+const path = require('path')
+const fs = require('fs')
+
+// === Serve static client (Vite build output) ===
+// adjust path if your client build output differs
+const clientDist = path.join(__dirname, '..', 'client', 'dist')
+app.use(express.static(clientDist))
+
+// SPA fallback: return index.html for all GET requests not handled by API
+app.get('*', (req, res) => {
+  const indexHtml = path.join(clientDist, 'index.html')
+  if (fs.existsSync(indexHtml)) {
+    res.sendFile(indexHtml)
+  } else {
+    res.status(404).send('Not Found')
+  }
+})
+// ================================================
+
+
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`API http://localhost:${PORT}`)
 })
+

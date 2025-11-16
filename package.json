@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
+    "build": "cd client && npm ci --omit=dev && npm run build",
+    "postinstall": "npm run build",
     "prestart": "prisma generate --schema=./server/prisma/schema.prisma",
     "start": "node server/server.js",
     "seed": "node prisma/seed.js",
