@@ -35,23 +35,23 @@ model Segment {
 }
 
 model Section {
-  id                String             @id @default(dbgenerated("nextval('\"Section_id_seq\"'::regclass)"))
-  roadId            String
-  startM            Float
-  endM              Float
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  aadtBands         AadtBand[]
-  bridgeBands       BridgeBand[]
-  kmPosts           KmPost[]
-  lanesBands        LanesBand[]
-  municipalityBands MunicipalityBand[]
-  qualityBands      QualityBand[]
-  rowWidthBands     RowWidthBand[]
+  id                    String                 @id @default(dbgenerated("nextval('\"Section_id_seq\"'::regclass)"))
+  roadId                String
+  startM                Float
+  endM                  Float
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  aadtBands             AadtBand[]
+  bridgeBands           BridgeBand[]
   carriagewayWidthBands CarriagewayWidthBand[]
-  road              Road               @relation(fields: [roadId], references: [id])
-  statusBands       StatusBand[]
-  surfaceBands      SurfaceBand[]
+  kmPosts               KmPost[]
+  lanesBands            LanesBand[]
+  municipalityBands     MunicipalityBand[]
+  qualityBands          QualityBand[]
+  rowWidthBands         RowWidthBand[]
+  road                  Road                   @relation(fields: [roadId], references: [id])
+  statusBands           StatusBand[]
+  surfaceBands          SurfaceBand[]
 
   @@index([roadId, startM, endM])
 }
@@ -126,12 +126,12 @@ model RowWidthBand {
 }
 
 model CarriagewayWidthBand {
-  id        Int     @id @default(autoincrement())
-  sectionId String  @map("section_id")
-  startM    Float
-  endM      Float
-  carriagewayWidthM Int
-  section   Section @relation(fields: [sectionId], references: [id], onDelete: NoAction)
+  id                Int     @id @default(autoincrement())
+  sectionId         String  @map("section_id")
+  startM            Float
+  endM              Float
+  carriagewayWidthM Decimal @db.Decimal
+  section           Section @relation(fields: [sectionId], references: [id])
 
   @@index([sectionId, startM, endM])
 }
@@ -166,33 +166,6 @@ model KmPost {
   section   Section @relation(fields: [sectionId], references: [id], onDelete: NoAction)
 
   @@index([sectionId, chainageM])
-}
-
-model GaaMiow {
-  id                     String   @id @map("primary_key")
-  project_id             String?
-  component_id           String?
-  project_component_cost String?
-  infra_type             String?
-  infra_year             BigInt?
-  type_of_work           String?
-  unit_of_measure        String?
-  physical_target        Decimal? @db.Decimal
-  dominant               String?
-  dsow                   String?
-  infra_id               String?
-  start_chainage         String?
-  end_chainage           String?
-  length                 String?  @map("Length")
-  start_station_limit    String?  @map("Start Station Limit")
-  end_station_limit      String?  @map("End Station Limit")
-  start_x_coordinate     String?
-  start_y_coordinate     String?
-  end_x_coordinate       String?
-  end_y_coordinate       String?
-
-  @@map("gaa_miow")
-  // @@schema("public") // uncomment if you're using multi-schema in Prisma 5+/6
 }
 
 enum SideBias {

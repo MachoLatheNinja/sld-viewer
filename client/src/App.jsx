@@ -4,7 +4,7 @@ import ControlBar from './components/ControlBar'
 import SLDCanvasV2 from './components/SLDCanvasV2'
 import { DEFAULT_BAND_GROUPS, bandArrayByKey } from './bands'
 import BandAccordion, { LABEL_W } from './components/BandAccordion'
-import { lrpToChainageKm, formatLRP } from './lrp'
+import { lrpToChainageKm, formatLRP, parseLrpRange } from './lrp'
 
 const EPS = 1e-6
 const SNAP_PX = 6 // px tolerance for snapping guide to seams
@@ -54,6 +54,8 @@ export default function App() {
 
   const [showGuide, setShowGuide] = useState(false)
   const [editSeams, setEditSeams] = useState(false)
+
+  const [highlightRange, setHighlightRange] = useState(null)
 
   const [bandGroups, setBandGroups] = useState(DEFAULT_BAND_GROUPS)
   const domain = useMemo(() => ({ fromKm, toKm }), [fromKm, toKm])
@@ -157,6 +159,12 @@ export default function App() {
   }, [guideKm, sectionId, sectionList])
 
   useEffect(() => {
+    if (!highlightRange) return
+    setFromKm(highlightRange.startKm)
+    setToKm(highlightRange.endKm)
+  }, [highlightRange])
+
+  useEffect(() => {
     const years = Array.from(new Set((allLayers?.miow || []).map(r => r.year))).sort((a,b) => b - a)
     const next = DEFAULT_BAND_GROUPS.map(g => ({ ...g, bands:[...g.bands] }))
     const hist = next.find(g => g.key === 'historical')
@@ -166,7 +174,45 @@ export default function App() {
     setBandGroups(next)
   }, [allLayers])
 
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === 'Escape') {
+        setHighlightRange(null)
+        setGuideKm(null)
+        setQ('')
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
   const onSearch = () => {
+    const parsedRange = parseLrpRange(q, allLayers?.kmPosts)
+    const lower = q.toLowerCase()
+    const looksLikeRange = /[k+]/i.test(q) && (/[-\u2013\u2014]|\bto\b/).test(lower)
+    if (parsedRange) {
+      const sec = currentSection
+      if (!sec) return
+      let { startKm, endKm } = parsedRange
+      if (endKm == null) {
+        startKm -= 0.0005
+        endKm = startKm + 0.001
+      }
+      if (endKm < sec.startKm || startKm > sec.endKm) {
+        alert('Range is outside this section.')
+        setHighlightRange(null)
+        return
+      }
+      const clippedStart = Math.max(startKm, sec.startKm) - sec.startKm
+      const clippedEnd = Math.min(endKm, sec.endKm) - sec.startKm
+      setHighlightRange({ startKm: clippedStart, endKm: clippedEnd })
+      setGuideKm(null)
+      return
+    } else if (looksLikeRange) {
+      alert("Use 'K#### + ### - K#### + ###'. Example: K0180 + 529 - K0180 + 546.")
+      return
+    }
+
     const kmVal = lrpToChainageKm(q, allLayers?.kmPosts)
     if (kmVal != null) {
       const sec = sectionList.find(s => s.id === sectionId)
@@ -175,6 +221,7 @@ export default function App() {
         guide = Math.max(0, Math.min(guide, sec.endKm - sec.startKm))
         setGuideKm(guide)
         setShowGuide(true)
+        setHighlightRange(null)
       }
       return
     }
@@ -188,6 +235,7 @@ export default function App() {
         setGuideKm(bridge.startKm - sec.startKm)
         setSectionId(sec.id)
         setShowGuide(true)
+        setHighlightRange(null)
       }
     }
   }
@@ -214,6 +262,38 @@ export default function App() {
     ? (scale ? scale.strokeXFromM(guideKm * 1000) : null)
     : hoverLeft
   const guideLeft = guideTrackLeft != null ? LABEL_W + guideTrackLeft : null
+
+  const rangePx = useMemo(() => {
+    if (!highlightRange || !scale) return null
+    const visStart = Math.max(highlightRange.startKm, fromKm)
+    const visEnd = Math.min(highlightRange.endKm, toKm)
+    if (visEnd <= fromKm || visStart >= toKm) return null
+    let left = scale.cssLeftFromM(visStart * 1000)
+    let right = scale.cssLeftFromM(visEnd * 1000)
+    if (right - left < 3) {
+      const mid = (left + right) / 2
+      left = mid - 1.5
+      right = mid + 1.5
+    }
+    return {
+      left: LABEL_W + left,
+      right: LABEL_W + right,
+      lineLeft: LABEL_W + Math.round(left) + 0.5,
+      lineRight: LABEL_W + Math.round(right) + 0.5,
+    }
+  }, [highlightRange, scale, fromKm, toKm])
+
+  const guides = useMemo(() => {
+    const arr = []
+    if (rangePx) {
+      arr.push({ km: highlightRange.startKm, left: rangePx.lineLeft, color: '#2196f3' })
+      arr.push({ km: highlightRange.endKm, left: rangePx.lineRight, color: '#2196f3' })
+    }
+    if (activeKm != null && guideLeft != null) {
+      arr.push({ km: activeKm, left: guideLeft, color: '#FFC107' })
+    }
+    return arr
+  }, [rangePx, highlightRange, activeKm, guideLeft])
 
   const handlePanelMouseMove = (e) => {
     if (!scale) return
@@ -334,9 +414,9 @@ export default function App() {
             <input
               value={q}
               onChange={(e)=>setQ(e.target.value)}
-              placeholder="Search chainage or bridge…"
+              placeholder="Search chainage, bridge, or range…"
               onKeyDown={(e)=>{ if(e.key==='Enter') onSearch() }}
-              style={{ width: 260 }}
+              style={{ width: 520 }}
             />
             <button type="button" onClick={onSearch}>Search</button>
             <select
@@ -407,21 +487,32 @@ export default function App() {
               groups={bandGroups}
               layers={layers}
               domain={domain}
-              activeKm={activeKm}
-              guideLeft={guideLeft}
+              guides={guides}
               contentRef={contentRef}
               scale={scale}
             />
-            {activeKm != null && guideLeft != null && (
-              <div
-                style={{ position:'absolute', top:0, bottom:0, left:guideLeft, width:1, background:'#FFC107', pointerEvents:'none', zIndex:10 }}
-              />
+            {rangePx && (
+              <>
+                <div
+                  style={{ position:'absolute', top:0, bottom:0, left:0, width:rangePx.left, background:'rgba(255,255,255,0.75)', backdropFilter:'grayscale(90%)', pointerEvents:'none', zIndex:5 }}
+                />
+                <div
+                  style={{ position:'absolute', top:0, bottom:0, left:rangePx.right, right:0, background:'rgba(255,255,255,0.75)', backdropFilter:'grayscale(90%)', pointerEvents:'none', zIndex:5 }}
+                />
+              </>
             )}
-            {activeKm != null && guideLeft != null && (
+            {guides.map((g, idx) => (
               <div
+                key={`line-${idx}`}
+                style={{ position:'absolute', top:0, bottom:0, left:g.left, width:1, background:g.color, pointerEvents:'none', zIndex:10 }}
+              />
+            ))}
+            {guides.map((g, idx) => (
+              <div
+                key={`tip-${idx}`}
                 style={{
                   position:'absolute',
-                  left:guideLeft,
+                  left:g.left,
                   top: (layout ? layout.axisY : 0) - 8,
                   transform:'translate(-50%, -100%)',
                   background:'rgba(0,0,0,0.7)',
@@ -434,10 +525,10 @@ export default function App() {
                   zIndex:40,
                 }}
               >
-                <div>{formatLRP(activeKm + (currentSection?.startKm || 0), layers?.kmPosts)}</div>
-                <div>{formatChainage(Math.round((activeKm + (currentSection?.startKm || 0)) * 1000))}</div>
+                <div>{formatLRP(g.km + (currentSection?.startKm || 0), layers?.kmPosts)}</div>
+                <div>{formatChainage(Math.round((g.km + (currentSection?.startKm || 0)) * 1000))}</div>
               </div>
-            )}
+            ))}
           </div>
           <div style={{ fontSize:12, color:'#616161', marginTop:6 }}>
             Drag seams to edit. Bridges allow gaps and support dragging either edge. Pan by dragging; scroll to zoom.
