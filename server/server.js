@@ -228,20 +228,23 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
   }
 })
 
+// === static assets, debug route, request logger, SPA fallback, listen ===
 const path = require('path')
 const fs = require('fs')
 
-// Serve static client files (only after API routes are defined)
 const clientDist = path.join(__dirname, '..', 'client', 'dist')
-if (fs.existsSync(clientDist)) {
-  app.use((req, res, next) => {
+
+// request logger (runs for all requests)
+app.use((req, res, next) => {
   console.log('[REQ]', new Date().toISOString(), req.method, req.originalUrl, 'qs=', req.query)
   next()
+})
 
-  // SPA fallback: serve index.html for non-API GET requests only
-  app.get('/api/debug/db', async (_req, res) => {
+// debug route for quick DB/Prisma check (before static fallback)
+app.get('/api/debug/db', async (_req, res) => {
   try {
-    const version = await prisma.$queryRaw`SELECT version()`
+    // simple quick checks
+    const version = await prisma.$queryRaw`SELECT version()` // Postgres version
     const roads = await prisma.road.count().catch(() => null)
     const sections = await prisma.section.count().catch(() => null)
     return res.json({ ok: true, version, roads, sections })
@@ -249,11 +252,25 @@ if (fs.existsSync(clientDist)) {
     console.error('[debug db error]', e)
     return res.status(500).json({ ok: false, error: String(e.message || e) })
   }
+})
+
+// Serve static client files if the build exists
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist))
+
+  // SPA fallback: send index.html for non-API GET requests
+  app.get('*', (req, res, next) => {
+    if (req.method !== 'GET') return next()
+    if (req.path.startsWith('/api')) return next()
+    const indexHtml = path.join(clientDist, 'index.html')
+    if (fs.existsSync(indexHtml)) return res.sendFile(indexHtml)
+    return res.status(404).send('Not Found')
   })
+} else {
+  console.warn('client dist not found at', clientDist)
 }
-// ================================================
 
-
+// finally listen
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`API http://localhost:${PORT}`)
 })
