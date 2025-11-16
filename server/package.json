@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "prestart": "prisma generate",
+    "prestart": "prisma generate --schema=./server/prisma/schema.prisma",
     "start": "node server.js",
     "seed": "node prisma/seed.js",
     "prisma:generate": "prisma generate",
