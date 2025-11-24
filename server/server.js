@@ -1,7 +1,9 @@
 const express = require('express')
 const cors = require('cors')
 const bodyParser = require('body-parser')
-require('dotenv').config({ path: './.env' })
+const path = require('path')
+require('dotenv').config({ path: path.join(__dirname, '../.env') })
+
 
 const { PrismaClient, Prisma } = require('@prisma/client')
 const prisma = new PrismaClient()
@@ -229,7 +231,6 @@ app.post('/api/roads/:id/bands/:band/move-seam', async (req, res) => {
 })
 
 // === static assets, debug route, request logger, SPA fallback, listen ===
-const path = require('path')
 const fs = require('fs')
 
 const clientDist = path.join(__dirname, '..', 'client', 'dist')

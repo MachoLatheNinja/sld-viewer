@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "prestart": "prisma generate --schema=./server/prisma/schema.prisma",
-    "start": "node server.js",
+    "prestart": "npm run prisma:generate",
+    "start": "npm run prisma:generate && node server.js",
     "seed": "node prisma/seed.js",
-    "prisma:generate": "prisma generate",
+    "prisma:generate": "prisma generate --schema=./prisma/schema.prisma",
     "prisma:migrate": "prisma migrate dev --name init",
     "prisma:studio": "prisma studio"
   },
